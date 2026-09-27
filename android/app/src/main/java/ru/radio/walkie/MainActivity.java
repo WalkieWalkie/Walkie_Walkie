@@ -509,6 +509,12 @@ public class MainActivity extends ComponentActivity {
             if (v != null && v.hasVibrator()) v.vibrate(VibrationEffect.createOneShot(25, VibrationEffect.DEFAULT_AMPLITUDE));
         }
 
+        // Оповещение от хозяина эфира — в системную шторку уведомлений телефона
+        @JavascriptInterface
+        public void notify(String title, String text) {
+            runOnUiThread(() -> WalkieService.showNotice(MainActivity.this, title, text));
+        }
+
         // Обновления: проверить / скачать / установить — смотря что сейчас можно
         @JavascriptInterface
         public void update() {

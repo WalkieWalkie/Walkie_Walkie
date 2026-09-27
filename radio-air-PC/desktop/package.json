@@ -1,7 +1,7 @@
 {
   "name": "radio-air",
   "productName": "Радио",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Эмулятор радиоэфира: живые станции, рация, шифрование",
   "author": "Radio",
   "private": true,

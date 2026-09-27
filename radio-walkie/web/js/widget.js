@@ -281,9 +281,13 @@
       case 'server-notice': {
         // Оповещение от хозяина сервера — показываем всем на канале (обновление, перезапуск и т.д.)
         const labels = { update: 'ОБНОВЛЕНИЕ', restart: 'ПЕРЕЗАПУСК', shutdown: 'ВЫКЛЮЧЕНИЕ', live: 'В РАБОТЕ' };
+        const nice = { update: 'Идёт обновление сервера', restart: 'Сервер перезапускается', shutdown: 'Сервер выключается', live: 'Сервер снова в работе' };
         const label = labels[msg.state] || 'СООБЩЕНИЕ';
-        const extra = msg.text ? ` · ${String(msg.text).slice(0, 80).toUpperCase()}` : '';
-        flash(`СЕРВЕР: ${label}${extra}`, 6000);
+        const text = String(msg.text || '').slice(0, 120);
+        flash(`СЕРВЕР: ${label}${text ? ` · ${text.toUpperCase()}` : ''}`, 8000);
+        try { engine.beep(660, 0.12); } catch { /* нет звука — не страшно */ }
+        // Android: продублировать в системную шторку — видно, даже когда рация свёрнута
+        try { window.WalkieShell?.notify?.('Сервер эфира', (nice[msg.state] || 'Сообщение') + (text ? ` — ${text}` : '')); } catch { /* ПК — натива нет */ }
         break;
       }
     }

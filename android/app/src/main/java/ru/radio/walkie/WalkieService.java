@@ -34,6 +34,8 @@ public class WalkieService extends Service implements AirState.Listener {
 
     private static final String CHANNEL = "walkie-status";
     private static final int NOTIFICATION_ID = 1;
+    private static final String NOTICE_CHANNEL = "walkie-notice";
+    private static final int NOTICE_ID = 42;
     private static final String ACTION_QUIT = "ru.radio.walkie.QUIT";
     private static final String ACTION_BUBBLE = "ru.radio.walkie.BUBBLE";
     private static final String ACTION_TALK = "ru.radio.walkie.TALK";
@@ -215,6 +217,31 @@ public class WalkieService extends Service implements AirState.Listener {
         if (AirState.callsign != null && !AirState.callsign.isEmpty()) t.append(t.length() > 0 ? " · " : "").append(AirState.callsign);
         if (AirState.server != null) t.append(t.length() > 0 ? " · " : "").append(AirState.server);
         return t.length() > 0 ? t.toString() : "Нажмите, чтобы открыть рацию";
+    }
+
+    // Оповещение от хозяина эфира — отдельным «всплывающим» уведомлением в шторке телефона,
+    // видно, даже если рация свёрнута или экран заблокирован.
+    static void showNotice(Context ctx, String title, String text) {
+        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        if (nm == null) return;
+        NotificationChannel channel = new NotificationChannel(NOTICE_CHANNEL, "Оповещения эфира", NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription("Сообщения от хозяина сервера: обновление, перезапуск, выключение");
+        nm.createNotificationChannel(channel);
+        Intent open = new Intent(ctx, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent tap = PendingIntent.getActivity(ctx, 7, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        Notification n = new NotificationCompat.Builder(ctx, NOTICE_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_walkie)
+            .setColor(0xffff9a3c)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(tap)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build();
+        nm.notify(NOTICE_ID, n);
     }
 
     private Notification notification() {
