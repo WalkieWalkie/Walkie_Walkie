@@ -755,6 +755,15 @@ body {
 .server__notice #notice-text { width: 100%; }
 .server__notice-status { margin: 6px 0 0; min-height: 1.2em; }
 
+.field__row--radio {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.field__row--radio #net-radio-url { flex: 1 1 auto; min-width: 0; }
+.field__row--radio .btn { flex: 0 0 auto; }
+
 .addr {
   color: var(--amber);
   font: 600 15px var(--mono);

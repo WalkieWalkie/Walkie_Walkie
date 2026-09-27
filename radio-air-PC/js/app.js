@@ -53,6 +53,9 @@
     playlistCount: $('playlist-count'),
     playlistEmpty: $('playlist-empty'),
     playlistNext: $('playlist-next'),
+    netRadioUrl: $('net-radio-url'),
+    netRadioToggle: $('net-radio-toggle'),
+    netRadioStatus: $('net-radio-status'),
     onairToggle: $('onair-toggle'),
     ptt: $('ptt'),
     vuBar: $('vu-bar'),
@@ -796,6 +799,16 @@
 
   const broadcaster = new Broadcaster(transmit);
 
+  // Интернет-радио как источник эфира: когда включено, в эфир идёт живой поток вместо плейлиста
+  const netRadio = { active: false, url: '' };
+
+  broadcaster.onStreamState = (state) => {
+    if (!els.netRadioStatus) return;
+    els.netRadioStatus.hidden = !netRadio.active;
+    if (!netRadio.active) return;
+    els.netRadioStatus.textContent = state === 'reconnect' ? 'Поток прервался — переподключаюсь…' : 'Интернет-радио в эфире.';
+  };
+
   // monitor — сервер присылает звук станции и ей самой (слышать свой эфир в приёмнике)
   function sendOnAir() {
     link.send({ type: 'onair', freq: broadcast.freq, name: broadcast.name, monitor: els.srcMonitor.checked });
@@ -857,7 +870,8 @@
       return;
     }
     await connectMic();
-    if (playlist.size) await playNext();
+    if (netRadio.active && netRadio.url) await broadcaster.playStream(netRadio.url).catch(() => {});
+    else if (playlist.size) await playNext();
     Object.assign(broadcast, { active: true, busy: false, freq, name: els.onairName.value.trim(), listeners: 0 });
     els.onairFreq.value = freq.toFixed(2);
     sendOnAir();
@@ -907,6 +921,7 @@
   };
 
   async function playNext() {
+    if (netRadio.active) { renderPlaylist(); return; } // в эфире интернет-радио — плейлист не крутим
     const item = playlist.next();
     renderPlaylist();
     if (!broadcaster.ctx) return;
@@ -942,6 +957,46 @@
     playNext();
   };
   broadcaster.onTrackError = onTrackFailed;
+
+  /* ───────── Интернет-радио как источник ───────── */
+
+  function renderNetRadio() {
+    els.netRadioToggle.textContent = netRadio.active ? 'Выключить радио' : 'Радио в эфир';
+    els.netRadioToggle.classList.toggle('btn--amber', netRadio.active);
+  }
+
+  async function toggleNetRadio() {
+    if (netRadio.active) {
+      netRadio.active = false;
+      broadcaster.stopTrack();
+      els.netRadioStatus.hidden = true;
+      els.netRadioStatus.textContent = '';
+      if (broadcast.active && playlist.size) playNext(); // вернуться к плейлисту
+      renderNetRadio();
+      return;
+    }
+    const url = (els.netRadioUrl.value || '').trim();
+    if (!/^https?:\/\//i.test(url)) {
+      toast('Укажите URL потока (http:// или https://)');
+      return;
+    }
+    netRadio.active = true;
+    netRadio.url = url;
+    renderNetRadio();
+    els.netRadioStatus.hidden = false;
+    if (broadcast.active && broadcaster.ctx) {
+      els.netRadioStatus.textContent = 'Подключаюсь к потоку…';
+      try {
+        await broadcaster.playStream(url);
+      } catch {
+        els.netRadioStatus.textContent = 'Не удалось подключиться к потоку.';
+      }
+    } else {
+      els.netRadioStatus.textContent = 'Включится, когда выйдете в эфир.';
+    }
+  }
+
+  els.netRadioToggle.addEventListener('click', () => { toggleNetRadio(); });
 
   function addTracks(files) {
     const tracks = [...files].filter((f) => f.type.startsWith('audio/') || AUDIO_EXT.test(f.name));

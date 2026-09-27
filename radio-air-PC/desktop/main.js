@@ -509,6 +509,17 @@ app.whenReady().then(() => {
   });
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
 
+  // Интернет-радио в эфир: живой поток играет через <audio> и снимается Web Audio для передачи.
+  // Web Audio глушит cross-origin медиа без CORS, а интернет-станции заголовок ACAO почти
+  // никогда не шлют — добавляем его сами к http(s)-ответам, иначе поток «тух» бы в тишину.
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (/^https?:/i.test(details.url)) {
+      callback({ responseHeaders: { ...details.responseHeaders, 'Access-Control-Allow-Origin': ['*'] } });
+    } else {
+      callback({});
+    }
+  });
+
   if (app.isPackaged) Menu.setApplicationMenu(null);
   loadPrefs();
   hotkeys.configure(prefs.hotkeys);

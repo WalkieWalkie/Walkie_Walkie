@@ -363,28 +363,71 @@ class Broadcaster {
     }
   }
 
-  // Треки играют через <audio>: файл читается потоково, а не распаковывается целиком в память
+  // Треки играют через <audio>: файл читается потоково, а не распаковывается целиком в память.
+  // Тот же <audio> тянет и живой интернет-поток (интернет-радио) — режим хранится в this._srcMode.
+  _ensurePlayer() {
+    if (this.player) return;
+    const audio = new Audio();
+    audio.crossOrigin = 'anonymous'; // поток снимается Web Audio — нужен CORS-чистый ответ (ACAO шлём из main.js)
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.8;
+    this.ctx.createMediaElementSource(audio).connect(gain).connect(this.input);
+    audio.addEventListener('ended', () => {
+      if (this._srcMode === 'stream') this._reconnectStream(); // поток кончаться не должен — переподключаемся
+      else this.onTrackEnd?.();
+    });
+    audio.addEventListener('error', () => {
+      if (this._srcMode === 'stream') this._reconnectStream();
+      else if (audio.getAttribute('src')) this.onTrackError?.();
+    });
+    this.player = audio;
+  }
+
   async playTrack(url) {
-    if (!this.player) {
-      const audio = new Audio();
-      const gain = this.ctx.createGain();
-      gain.gain.value = 0.8;
-      this.ctx.createMediaElementSource(audio).connect(gain).connect(this.input);
-      audio.addEventListener('ended', () => this.onTrackEnd?.());
-      audio.addEventListener('error', () => {
-        if (audio.getAttribute('src')) this.onTrackError?.();
-      });
-      this.player = audio;
-    }
+    this._ensurePlayer();
+    this._srcMode = 'track';
+    this._streamUrl = null;
     this.player.src = url;
     await this.player.play();
   }
 
+  // Интернет-радио: играем живой поток по URL, при обрыве сами переподключаемся
+  async playStream(url) {
+    this._ensurePlayer();
+    this._srcMode = 'stream';
+    this._streamUrl = url;
+    this.player.src = url;
+    try {
+      await this.player.play();
+      this.onStreamState?.('playing');
+    } catch {
+      this._reconnectStream();
+    }
+  }
+
+  _reconnectStream() {
+    if (this._srcMode !== 'stream' || !this._streamUrl) return;
+    clearTimeout(this._reconnectTimer);
+    this.onStreamState?.('reconnect');
+    this._reconnectTimer = setTimeout(() => {
+      if (this._srcMode !== 'stream' || !this.player) return;
+      this.player.src = this._streamUrl;
+      this.player.play().then(() => this.onStreamState?.('playing')).catch(() => this._reconnectStream());
+    }, 2500);
+  }
+
   stopTrack() {
     if (!this.player) return;
+    this._srcMode = null;
+    this._streamUrl = null;
+    clearTimeout(this._reconnectTimer);
     this.player.pause();
     this.player.removeAttribute('src');
     this.player.load();
+  }
+
+  get streaming() {
+    return this._srcMode === 'stream';
   }
 
   get trackPlaying() {
