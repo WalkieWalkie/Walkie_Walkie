@@ -19,7 +19,7 @@ const http = require('node:http');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { AirServer } = require('./air-server');
-const { PortMapper, lanAddresses, isPublicIp } = require('./upnp');
+const { PortMapper, lanAddresses, isPublicIp, publicAddresses } = require('./upnp');
 const { Hotkeys, ACTIONS, DEFAULTS, label } = require('./hotkeys');
 
 const pkg = require('./package.json');
@@ -336,8 +336,11 @@ async function hostStart({ port = 8765, local = false, upnp = true } = {}) {
   }
   hosting = { port, reused };
 
-  const result = { ok: true, port, reused, lan: lanAddresses(), upnp: null };
-  if (upnp && !local) {
+  const publicIps = publicAddresses();
+  const result = { ok: true, port, reused, lan: lanAddresses(), publicIps, upnp: null };
+  // На VPS/сервере белый IP висит прямо на карте — роутера нет, UPnP не нужен и только
+  // висит 3 секунды на таймауте, а потом пугает «роутер не открыл порт». Пропускаем его.
+  if (upnp && !local && publicIps.length === 0) {
     mapper = new PortMapper();
     try {
       const externalIp = await mapper.externalIp();

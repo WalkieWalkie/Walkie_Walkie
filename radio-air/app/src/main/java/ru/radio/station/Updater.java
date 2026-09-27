@@ -33,7 +33,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /*
- * Обновления из релизов GitHub (BuninSil/Walkie-Walkie).
+ * Обновления из релизов GitHub (WalkieWalkie/Walkie_Walkie).
  *   1. Смотрим релизы: APK вида <PREFIX>1.0.N.apk, где N больше нашего номера сборки.
  *   2. Скачиваем в фоне и проверяем: тот же пакет и тот же ключ подписи — иначе не ставим.
  *   3. Ставим системным установщиком (PackageInstaller). Первый раз Android спросит подтверждение;
@@ -46,12 +46,12 @@ public final class Updater {
         void onUpdateChanged();
     }
 
-    private static final String RELEASES = "https://api.github.com/repos/BuninSil/Walkie-Walkie/releases?per_page=20";
+    private static final String RELEASES = "https://api.github.com/repos/WalkieWalkie/Walkie_Walkie/releases?per_page=20";
     private static final String CHANNEL = "updates";
     // Запасной список релизов: лента страницы GitHub. У API лимит 60 запросов в час на IP, а на мобильном
     // интернете за одним IP сидит пол-города — API отвечает 403, лента — нет
-    private static final String FEED = "https://github.com/BuninSil/Walkie-Walkie/releases.atom";
-    private static final String DOWNLOAD = "https://github.com/BuninSil/Walkie-Walkie/releases/download/";
+    private static final String FEED = "https://github.com/WalkieWalkie/Walkie_Walkie/releases.atom";
+    private static final String DOWNLOAD = "https://github.com/WalkieWalkie/Walkie_Walkie/releases/download/";
     private static final long CHECK_EVERY_MS = TimeUnit.HOURS.toMillis(1);        // в фоне
     private static final long CHECK_ON_OPEN_MS = TimeUnit.MINUTES.toMillis(1);    // при каждом входе (минута — от повторов)
     private static final int NOTIFY_ID = 77;

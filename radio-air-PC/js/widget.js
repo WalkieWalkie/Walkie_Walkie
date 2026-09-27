@@ -330,6 +330,7 @@
   }
 
   function hostAddress(res) {
+    if (res.publicIps?.[0]) return `${res.publicIps[0]}:${res.port}`;
     if (res.upnp?.ok && res.upnp.public) return `${res.upnp.externalIp}:${res.port}`;
     return res.lan?.[0] ? `${res.lan[0]}:${res.port}` : `ПОРТ ${res.port}`;
   }

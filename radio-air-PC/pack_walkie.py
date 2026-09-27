@@ -130,7 +130,7 @@ def package_json():
             'productName': TITLE,
             # Свой канал обновлений: «Рация» и «Радио» лежат в одних релизах, но манифесты разные
             # (walkie.yml и latest.yml) — приложения не путают версии друг друга.
-            'publish': [{'provider': 'github', 'owner': 'BuninSil', 'repo': 'Walkie-Walkie', 'channel': 'walkie', 'releaseType': 'draft'}],
+            'publish': [{'provider': 'github', 'owner': 'WalkieWalkie', 'repo': 'Walkie_Walkie', 'channel': 'walkie', 'releaseType': 'draft'}],
             'directories': build['directories'],
             'files': build['files'],
             'extraResources': [{'from': 'web', 'to': 'web'}],

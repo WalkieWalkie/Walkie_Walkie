@@ -1229,17 +1229,26 @@
     }
     const port = info.port;
     const lan = info.lan?.[0];
+    const pub = info.publicIps?.[0];
     const lines = [];
     if (info.reused) lines.push(['На этом компьютере уже работает сервер эфира (например, python server.py) — приложение подключилось к нему.']);
     const up = info.upnp;
-    if (up?.ok && up.public) {
+    if (pub) {
+      // VPS/сервер: белый IP прямо на карте, роутера нет — это и есть адрес для друзей.
+      lines.push(['Адрес для друзей: ', { addr: `${pub}:${port}` }]);
+      lines.push([`Публичный IP — проброс не нужен. Если друзья не подключаются, откройте TCP-порт ${port} в файрволе сервера (например, ufw allow ${port}).`]);
+    } else if (up?.ok && up.public) {
       lines.push(['Адрес для друзей: ', { addr: `${up.externalIp}:${port}` }]);
       lines.push(['Порт в роутере открыт автоматически.']);
     } else if (up?.ok) {
       lines.push([{ warn: `Внешний адрес ${up.externalIp} — «серый»: из интернета к вам не подключиться. Нужен белый IP у провайдера.` }]);
-    } else {
+    } else if (lan) {
       lines.push([{ warn: `Роутер не открыл порт сам: ${up?.error ?? 'нет ответа'}.` }]);
-      if (lan) lines.push([`Пробросьте в роутере TCP-порт ${port} на ${lan}, и друзья подключатся по вашему белому IP.`]);
+      lines.push([`Пробросьте в роутере TCP-порт ${port} на ${lan}, и друзья подключатся по вашему белому IP.`]);
+    } else {
+      // Ни домашней сети, ни роутера, ни публичного адреса на карте — скорее всего сервер за NAT
+      // провайдера (VPS с приватным IP). Локально белый адрес не узнать, подсказываем что делать.
+      lines.push([`Дайте друзьям внешний IP этого сервера и порт ${port}, и откройте TCP-порт ${port} в файрволе (например, ufw allow ${port}). Узнать внешний IP: curl ifconfig.me.`]);
     }
     if (lan) lines.push(['В вашей Wi-Fi сети: ', { addr: `${lan}:${port}` }]);
     return lines;

@@ -48,6 +48,18 @@ function isPublicIp(ip) {
   return true;
 }
 
+// Публичные IPv4 прямо на сетевой карте — так бывает на VPS/сервере: белый адрес висит
+// на интерфейсе, роутера и UPnP нет. Тогда это и есть адрес для друзей, пробрасывать нечего.
+function publicAddresses() {
+  const found = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const a of list ?? []) {
+      if (a.family === 'IPv4' && !a.internal && isPublicIp(a.address)) found.push(a.address);
+    }
+  }
+  return found;
+}
+
 function discover(localAddress, timeout = 3000) {
   return new Promise((resolve) => {
     const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -206,4 +218,4 @@ class PortMapper {
   }
 }
 
-module.exports = { PortMapper, lanAddresses, isPublicIp };
+module.exports = { PortMapper, lanAddresses, isPublicIp, publicAddresses };
