@@ -114,6 +114,16 @@ public class MainActivity extends ComponentActivity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
+        // Ассеты рации лежат в APK (быстро) — кэш WebView для них не нужен и вреден: после обновления
+        // приложения он мог отдать старые файлы вперемешку с новыми, отчего экран оставался пустым и
+        // помогала только очистка данных. Кэш не используем, а при установке новой версии один раз
+        // чистим уже накопленный. localStorage (настройки рации) не трогаем — он остаётся.
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        int cacheVer = prefs.getInt("web_cache_ver", -1);
+        if (cacheVer != BuildConfig.VERSION_CODE) {
+            web.clearCache(true);
+            prefs.edit().putInt("web_cache_ver", BuildConfig.VERSION_CODE).apply();
+        }
 
         air = new AirSocket(this, web);
         web.addJavascriptInterface(air, "AirSocket");

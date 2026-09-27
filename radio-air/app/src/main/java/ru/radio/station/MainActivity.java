@@ -103,6 +103,15 @@ public class MainActivity extends ComponentActivity implements Station.Listener 
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
+        // Ассеты станции лежат в APK — кэш WebView для них не нужен и после обновления мог отдать
+        // старые файлы вперемешку с новыми (пустой экран, лечилось очисткой данных). Кэш не используем,
+        // а при установке новой версии один раз чистим накопленный. localStorage (настройки) не трогаем.
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        android.content.SharedPreferences cachePrefs = getSharedPreferences("station_cache", MODE_PRIVATE);
+        if (cachePrefs.getInt("web_cache_ver", -1) != BuildConfig.VERSION_CODE) {
+            web.clearCache(true);
+            cachePrefs.edit().putInt("web_cache_ver", BuildConfig.VERSION_CODE).apply();
+        }
         web.addJavascriptInterface(new Bridge(), "StationApp");
 
         WebViewAssetLoader assets = new WebViewAssetLoader.Builder()
@@ -285,6 +294,18 @@ public class MainActivity extends ComponentActivity implements Station.Listener 
             main.post(() -> {
                 micWanted = on;
                 if (!station.setMic(on) && on) askMic.launch(Manifest.permission.RECORD_AUDIO);
+            });
+        }
+
+        // Полный выход: глушим эфир и фоновый сервис, закрываем окно и завершаем процесс,
+        // чтобы станция не оставалась висеть в фоне и не занимала память.
+        @JavascriptInterface
+        public void quit() {
+            main.post(() -> {
+                try { station.stop(); } catch (Exception ignored) { /* уже */ }
+                try { StationService.stop(MainActivity.this); } catch (Exception ignored) { /* уже */ }
+                finishAndRemoveTask();
+                main.postDelayed(() -> System.exit(0), 200); // добить процесс, удерживаемый сервисом/аудио
             });
         }
     }
