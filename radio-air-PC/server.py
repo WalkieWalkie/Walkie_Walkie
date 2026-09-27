@@ -172,6 +172,13 @@ class Air:
         elif kind == 'offair' and client.station:
             self.off_air(client)
             self.update_listeners()
+        elif kind == 'notice':
+            # Оповещение хозяина эфира — сервер рассылает его всем подключённым (рациям и станциям).
+            # Канал закрыт ключом (SCR), поэтому шлёт только свой; отдельной роли админа тут нет.
+            state = msg.get('state')
+            if state in ('update', 'restart', 'shutdown', 'live'):
+                text = str(msg.get('text') or '').strip()[:120]
+                self.broadcast({'type': 'server-notice', 'state': state, 'text': text}, exclude=client)
 
 
 def parse_freq(value):

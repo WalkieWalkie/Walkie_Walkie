@@ -766,6 +766,12 @@
       case 'station-off':
         removeLive(msg.id);
         break;
+      case 'server-notice': {
+        // Оповещение от хозяина сервера (когда мы подключены к чужому эфиру) — показываем тостом
+        const labels = { update: 'Обновление', restart: 'Перезапуск', shutdown: 'Выключение', live: 'В работе' };
+        toast(`Сервер: ${labels[msg.state] || 'сообщение'}${msg.text ? ` · ${msg.text}` : ''}`);
+        break;
+      }
       case 'onair-ok':
         if (msg.station) {
           broadcast.name = msg.station.name;
@@ -1330,6 +1336,26 @@
     if (serverState.hosting) stopHosting();
     else startHosting();
   });
+
+  // Оповестить всех в эфире: кнопка статуса → сервер разошлёт server-notice всем клиентам
+  // (рациям и станциям). Работает и на своём сервере, и когда подключён к чужому.
+  {
+    const noticeText = $('notice-text');
+    const noticeStatus = $('notice-status');
+    const noticeLabels = { update: 'Обновление', restart: 'Перезапуск', shutdown: 'Выключение', live: 'В работе' };
+    document.querySelectorAll('[data-notice]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!link.online) {
+          if (noticeStatus) noticeStatus.textContent = 'Нет связи с сервером — оповещение не отправить.';
+          return;
+        }
+        const state = btn.getAttribute('data-notice');
+        const text = (noticeText && noticeText.value || '').trim().slice(0, 120);
+        link.send({ type: 'notice', state, text });
+        if (noticeStatus) noticeStatus.textContent = `Отправлено всем: «${noticeLabels[state] || state}»${text ? ` · ${text}` : ''}.`;
+      });
+    });
+  }
 
   /* ───────── Уведомления ───────── */
 

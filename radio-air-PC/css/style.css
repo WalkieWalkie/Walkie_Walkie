@@ -735,6 +735,26 @@ body {
 
 .server__host-info p { margin: 0 0 4px; }
 
+.server__notice {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+}
+.server__notice-title {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.server__notice-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.server__notice-btns .btn { flex: 0 1 auto; }
+.server__notice #notice-text { width: 100%; }
+.server__notice-status { margin: 6px 0 0; min-height: 1.2em; }
+
 .addr {
   color: var(--amber);
   font: 600 15px var(--mono);

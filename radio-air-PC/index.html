@@ -109,6 +109,18 @@
           <button class="btn btn--amber" type="button" id="host-toggle">Открыть свой сервер</button>
           <div class="server__host-info" id="host-info"></div>
         </div>
+        <div class="server__notice" id="notice-box">
+          <div class="server__notice-title">Оповестить всех в эфире</div>
+          <div class="server__notice-btns">
+            <button class="btn" type="button" data-notice="update">Обновление</button>
+            <button class="btn" type="button" data-notice="restart">Перезапуск</button>
+            <button class="btn" type="button" data-notice="shutdown">Выключение</button>
+            <button class="btn btn--amber" type="button" data-notice="live">В работе</button>
+          </div>
+          <input class="input" id="notice-text" maxlength="120" spellcheck="false"
+                 placeholder="можно добавить текст, напр. «вернусь через 5 минут»" aria-label="Текст оповещения">
+          <p class="server__notice-status hint" id="notice-status"></p>
+        </div>
       </article>
 
       <article class="panel panel--wide onair" id="onair" data-state="idle">

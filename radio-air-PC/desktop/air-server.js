@@ -244,6 +244,12 @@ class AirServer {
     } else if (msg.type === 'offair' && client.station) {
       this.offAir(client);
       this.updateListeners();
+    } else if (msg.type === 'notice') {
+      // Оповещение хозяина эфира — рассылаем всем подключённым (рациям и станциям).
+      if (['update', 'restart', 'shutdown', 'live'].includes(msg.state)) {
+        const text = String(msg.text || '').trim().slice(0, 120);
+        this.broadcast({ type: 'server-notice', state: msg.state, text }, client);
+      }
     }
   }
 }

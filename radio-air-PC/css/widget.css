@@ -36,6 +36,11 @@ body {
   -webkit-user-select: none;
 }
 
+/* Рация в отдельном окне — виджет: за ней ничего быть не должно, только сама рация поверх
+ * рабочего стола. Общий look.css красит фон body с !important (нужно для большого окна
+ * станции) — здесь перебиваем его более высокой специфичностью, окно и так прозрачное. */
+html:root body { background: transparent !important; }
+
 button {
   font: inherit;
   color: inherit;

@@ -278,6 +278,14 @@
       case 'error':
         flash(String(msg.message).toUpperCase(), 2500);
         break;
+      case 'server-notice': {
+        // Оповещение от хозяина сервера — показываем всем на канале (обновление, перезапуск и т.д.)
+        const labels = { update: 'ОБНОВЛЕНИЕ', restart: 'ПЕРЕЗАПУСК', shutdown: 'ВЫКЛЮЧЕНИЕ', live: 'В РАБОТЕ' };
+        const label = labels[msg.state] || 'СООБЩЕНИЕ';
+        const extra = msg.text ? ` · ${String(msg.text).slice(0, 80).toUpperCase()}` : '';
+        flash(`СЕРВЕР: ${label}${extra}`, 6000);
+        break;
+      }
     }
   }
 
