@@ -1,7 +1,7 @@
 {
   "name": "radio-air",
   "productName": "Радио",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Эмулятор радиоэфира: живые станции, рация, шифрование",
   "author": "Radio",
   "private": true,
@@ -31,6 +31,7 @@
       "air-server.js",
       "upnp.js",
       "telegram.js",
+      "control.js",
       "hotkeys.js",
       "package.json",
       "!**/node_modules/uiohook-napi/prebuilds/{darwin-*,linux-*,win32-arm64}/**",

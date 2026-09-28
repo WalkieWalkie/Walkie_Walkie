@@ -156,6 +156,33 @@
           <p class="hint">В Телеграме: найдите своего бота → <b>/login ваш_пароль</b> → <b>/help</b>. Дальше — командами или просто текстом (уйдёт оповещением в эфир).</p>
         </article>
 
+        <article class="panel panel--wide ctrl" id="ctrl-panel">
+          <div class="panel__head">
+            <h2>Веб-панель управления</h2>
+            <span class="net" id="ctrl-net"><span class="net__dot"></span><span id="ctrl-net-text">выключена</span></span>
+          </div>
+          <p class="hint">Те же команды, что у бота, но через браузер — на случай, когда Телеграм недоступен (например, заблокирован). Открывается по адресу этого компьютера и порту, вход по паролю. Порт нужно пробросить/открыть в роутере, если рулить будете не из своей сети.</p>
+          <label class="field field--check">
+            <input type="checkbox" id="ctrl-enabled">
+            <span class="field__label">Включить веб-панель</span>
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span class="field__label">Порт</span>
+              <input class="input" id="ctrl-port" inputmode="numeric" autocomplete="off" placeholder="8766">
+            </label>
+            <label class="field">
+              <span class="field__label">Пароль входа</span>
+              <input class="input" id="ctrl-password" type="password" autocomplete="new-password" placeholder="кодовое слово">
+            </label>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn--amber" id="ctrl-save" type="button">Сохранить и запустить</button>
+          </div>
+          <p class="hint" id="ctrl-status"></p>
+          <p class="hint" id="ctrl-addr"></p>
+        </article>
+
         <article class="panel panel--wide">
           <h2>Обновления <span class="muted" id="upd-ver"></span></h2>
           <div class="btn-row">

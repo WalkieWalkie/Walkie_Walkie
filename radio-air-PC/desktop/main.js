@@ -21,6 +21,7 @@ const { pathToFileURL } = require('node:url');
 const { AirServer } = require('./air-server');
 const { PortMapper, lanAddresses, isPublicIp, publicAddresses } = require('./upnp');
 const { TelegramBot } = require('./telegram');
+const { ControlServer } = require('./control');
 const { Hotkeys, ACTIONS, DEFAULTS, label } = require('./hotkeys');
 
 const pkg = require('./package.json');
@@ -79,6 +80,7 @@ let prefs = {
   hotkeys: { bindings: { ...DEFAULTS }, pttMode: 'hold' },
   autoUpdate: true, // тихо качать и ставить обновления из релизов GitHub
   telegram: { token: '', password: '', chats: [] }, // управление станцией из Телеграма
+  control: { enabled: false, port: 8766, password: '' }, // веб-панель управления (когда ТГ недоступен)
 };
 
 function validCombo(c) {
@@ -108,6 +110,11 @@ function loadPrefs() {
         token: typeof data.telegram?.token === 'string' ? data.telegram.token : '',
         password: typeof data.telegram?.password === 'string' ? data.telegram.password : '',
         chats: Array.isArray(data.telegram?.chats) ? data.telegram.chats.filter((n) => Number.isInteger(n)) : [],
+      },
+      control: {
+        enabled: Boolean(data.control?.enabled),
+        port: Number.isInteger(data.control?.port) && data.control.port > 0 && data.control.port < 65536 ? data.control.port : 8766,
+        password: typeof data.control?.password === 'string' ? data.control.password : '',
       },
     };
   } catch {
@@ -511,7 +518,9 @@ let botReqId = 0;
 const botPending = new Map();
 
 // Команду исполняет окно станции (renderer): там broadcaster, link, плейлист, оповещения.
-bot.onCommand((cmd, args, chatId) => new Promise((resolve) => {
+// Общий диспатч команд станции — зовут и телеграм-бот, и веб-панель.
+function runStationCommand(cmd, args) {
+ return new Promise((resolve) => {
   // Управление самим приложением — прямо в main (окно для этого не нужно)
   if (cmd === 'restart') {
     resolve('♻️ Перезапускаю станцию — вернусь через несколько секунд.');
@@ -557,11 +566,14 @@ bot.onCommand((cmd, args, chatId) => new Promise((resolve) => {
   if (!win || win.isDestroyed()) { resolve('Станция сейчас закрыта.'); return; }
   const id = ++botReqId;
   botPending.set(id, resolve);
-  win.webContents.send('bot:command', { id, cmd, args, chatId });
+  win.webContents.send('bot:command', { id, cmd, args });
   setTimeout(() => {
     if (botPending.has(id)) { botPending.delete(id); resolve('Станция не ответила — окно эфира закрыто?'); }
   }, 8000);
-}));
+ });
+}
+
+bot.onCommand((cmd, args) => runStationCommand(cmd, args));
 
 ipcMain.handle('bot:answer', (_e, { id, text } = {}) => {
   const resolve = botPending.get(id);
@@ -589,6 +601,55 @@ ipcMain.handle('telegram:set', async (_e, cfg = {}) => {
     try { await bot.start(); } catch (e) { error = e.message; }
   }
   return { running: bot.running, username: bot.me && bot.me.username ? bot.me.username : '', error, hasPassword: Boolean(next.password), chats: next.chats.length };
+});
+
+// ───────── Веб-панель управления станцией (запасной путь, когда ТГ недоступен) ─────────
+
+const control = new ControlServer(
+  {
+    get: () => prefs.control,
+    save: (patch) => { prefs.control = { ...prefs.control, ...patch }; savePrefs(); },
+  },
+  (cmd, args) => runStationCommand(cmd, args),
+);
+
+function localAddresses() {
+  try { return lanAddresses(); } catch { return []; }
+}
+
+ipcMain.handle('control:get', () => ({
+  enabled: Boolean(prefs.control.enabled),
+  port: prefs.control.port || 8766,
+  hasPassword: Boolean(prefs.control.password),
+  running: control.running,
+  addresses: localAddresses(),
+}));
+
+ipcMain.handle('control:set', async (_e, cfg = {}) => {
+  const next = { ...prefs.control };
+  if (typeof cfg.enabled === 'boolean') next.enabled = cfg.enabled;
+  if (cfg.port !== undefined) {
+    const p = Number(cfg.port);
+    if (Number.isInteger(p) && p > 0 && p < 65536) next.port = p;
+  }
+  if (typeof cfg.password === 'string') next.password = cfg.password;
+  prefs.control = next;
+  savePrefs();
+  control.stop();
+  let error = '';
+  if (next.enabled && next.password) {
+    try { await control.start(); } catch (e) { error = e && e.message ? e.message : String(e); }
+  } else if (next.enabled && !next.password) {
+    error = 'Без пароля панель не запускается — задай пароль.';
+  }
+  return {
+    running: control.running,
+    enabled: next.enabled,
+    port: next.port,
+    hasPassword: Boolean(next.password),
+    addresses: localAddresses(),
+    error,
+  };
 });
 
 app.whenReady().then(() => {
@@ -625,6 +686,7 @@ app.whenReady().then(() => {
   openWindow(process.argv.includes('--widget') ? 'widget' : prefs.mode);
   setupUpdater();
   bot.start().catch(() => {}); // молча: не настроен или сеть — не мешаем запуску станции
+  control.start()?.catch(() => {}); // веб-панель — если включена и с паролем
 });
 
 app.on('window-all-closed', () => app.quit());

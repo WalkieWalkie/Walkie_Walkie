@@ -51,4 +51,8 @@ contextBridge.exposeInMainWorld('radioDesktop', {
     ipcRenderer.on('bot:command', (_e, m) => callback(m));
   },
   botAnswer: (id, text) => ipcRenderer.invoke('bot:answer', { id, text }),
+
+  // Веб-панель управления станцией (запасной путь, когда Телеграм недоступен)
+  controlGet: () => ipcRenderer.invoke('control:get'),
+  controlSet: (cfg) => ipcRenderer.invoke('control:set', cfg),
 });

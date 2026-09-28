@@ -861,6 +861,32 @@ body {
 
 .field__row .input { flex: 1 1 90px; }
 
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.field-row .field { flex: 1 1 140px; }
+
+.field--check {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 2px;
+  cursor: pointer;
+}
+
+.field--check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--amber, #ffb547);
+  cursor: pointer;
+}
+
+.field--check .field__label { text-transform: none; letter-spacing: 0.02em; font-size: 12px; }
+
 .input:disabled { opacity: 0.55; }
 
 .toggle {

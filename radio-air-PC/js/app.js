@@ -1173,6 +1173,47 @@
     });
   }
 
+  // ───────── Настройка веб-панели управления ─────────
+  if (desktop && desktop.controlGet) {
+    const cEnabled = $('ctrl-enabled');
+    const cPort = $('ctrl-port');
+    const cPass = $('ctrl-password');
+    const cStatus = $('ctrl-status');
+    const cAddr = $('ctrl-addr');
+    const cNet = $('ctrl-net');
+    const cNetText = $('ctrl-net-text');
+    const showCtrl = (s) => {
+      const running = Boolean(s && s.running);
+      if (cNet) cNet.classList.toggle('is-online', running);
+      if (cNetText) cNetText.textContent = running ? 'работает' : 'выключена';
+      const port = (s && s.port) || 8766;
+      if (cStatus) {
+        if (s && s.error) cStatus.textContent = '⚠️ ' + s.error;
+        else if (running) cStatus.textContent = `Панель работает на порту ${port}.${s && s.hasPassword ? '' : ' Внимание: пароль не задан!'}`;
+        else cStatus.textContent = 'Панель выключена — включите галочку, задайте пароль и «Сохранить и запустить».';
+      }
+      if (cAddr) {
+        if (running && s.addresses && s.addresses.length) {
+          cAddr.innerHTML = 'Открыть с телефона в браузере: ' +
+            s.addresses.map((a) => `<b>http://${a}:${port}</b>`).join(' или ');
+        } else cAddr.textContent = '';
+      }
+    };
+    desktop.controlGet().then((s) => {
+      if (!s) return;
+      if (cEnabled) cEnabled.checked = Boolean(s.enabled);
+      if (cPort) cPort.value = s.port || 8766;
+      showCtrl(s);
+    }).catch(() => {});
+    $('ctrl-save')?.addEventListener('click', async () => {
+      if (cStatus) cStatus.textContent = 'Применяю…';
+      const cfg = { enabled: cEnabled ? cEnabled.checked : false, port: cPort ? cPort.value : 8766 };
+      if (cPass && cPass.value) cfg.password = cPass.value;
+      const s = await desktop.controlSet(cfg).catch(() => ({ error: 'сбой связи' }));
+      showCtrl(s);
+    });
+  }
+
   function addTracks(files) {
     const tracks = [...files].filter((f) => f.type.startsWith('audio/') || AUDIO_EXT.test(f.name));
     if (!tracks.length) {
