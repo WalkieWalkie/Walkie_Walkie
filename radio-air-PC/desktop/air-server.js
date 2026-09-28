@@ -246,7 +246,7 @@ class AirServer {
       this.updateListeners();
     } else if (msg.type === 'notice') {
       // Оповещение хозяина эфира — рассылаем всем подключённым (рациям и станциям).
-      if (['update', 'restart', 'shutdown', 'live'].includes(msg.state)) {
+      if (['update', 'restart', 'shutdown', 'live', 'msg'].includes(msg.state)) {
         const text = String(msg.text || '').trim().slice(0, 120);
         this.broadcast({ type: 'server-notice', state: msg.state, text }, client);
       }

@@ -176,7 +176,7 @@ class Air:
             # Оповещение хозяина эфира — сервер рассылает его всем подключённым (рациям и станциям).
             # Канал закрыт ключом (SCR), поэтому шлёт только свой; отдельной роли админа тут нет.
             state = msg.get('state')
-            if state in ('update', 'restart', 'shutdown', 'live'):
+            if state in ('update', 'restart', 'shutdown', 'live', 'msg'):
                 text = str(msg.get('text') or '').strip()[:120]
                 self.broadcast({'type': 'server-notice', 'state': state, 'text': text}, exclude=client)
 

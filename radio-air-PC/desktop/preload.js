@@ -43,4 +43,12 @@ contextBridge.exposeInMainWorld('radioDesktop', {
   setAutoUpdate: (on) => ipcRenderer.invoke('updater:auto', on),
   autoUpdate: () => ipcRenderer.invoke('app:auto-update'),
   appVersion: () => ipcRenderer.invoke('app:version'),
+
+  // Телеграм-бот управления станцией
+  telegramGet: () => ipcRenderer.invoke('telegram:get'),
+  telegramSet: (cfg) => ipcRenderer.invoke('telegram:set', cfg),
+  onBotCommand: (callback) => {
+    ipcRenderer.on('bot:command', (_e, m) => callback(m));
+  },
+  botAnswer: (id, text) => ipcRenderer.invoke('bot:answer', { id, text }),
 });

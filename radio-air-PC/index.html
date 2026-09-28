@@ -13,229 +13,271 @@
 </head>
 <body>
   <main class="page">
-    <section class="radio" id="radio" data-power="off" aria-label="Радиоприёмник">
-      <header class="radio__top">
-        <div class="brand">
-          <span class="brand__name">РАДИО</span>
-          <span class="brand__model">эфир · прототип 0.1</span>
-        </div>
-        <div class="radio__actions">
-          <button class="look-btn" id="look-btn" type="button" title="Внешний вид: темы, дисплей, фон">🎨</button>
-          <button class="power" id="to-widget" type="button" hidden title="Свернуть в рацию на рабочий стол">
-            <span class="power__text">РАЦИЯ</span>
-          </button>
-          <button class="power" id="power" type="button" aria-pressed="false">
-            <span class="power__lamp" aria-hidden="true"></span>
-            <span class="power__text">ВКЛ</span>
-          </button>
-        </div>
-      </header>
+    <nav class="tabs" id="tabs" aria-label="Разделы станции">
+      <button class="tabs__btn is-active" type="button" data-tabbtn="broadcast">🎙 Эфир</button>
+      <button class="tabs__btn" type="button" data-tabbtn="server">📡 Сервер</button>
+      <button class="tabs__btn" type="button" data-tabbtn="reception">📻 Приём</button>
+      <span class="tabs__spacer"></span>
+      <button class="look-btn" id="look-btn" type="button" title="Внешний вид: темы, дисплей, фон">🎨</button>
+      <button class="power" id="to-widget" type="button" hidden title="Свернуть в рацию на рабочий стол">
+        <span class="power__text">РАЦИЯ</span>
+      </button>
+    </nav>
 
-      <div class="scale" id="scale" tabindex="0" role="slider" aria-label="Шкала настройки"
-           aria-valuemin="87.5" aria-valuemax="108" aria-valuenow="97.2">
-        <div class="scale__glass">
-          <div class="scale__track" id="track">
-            <div id="ticks"></div>
-            <div id="marks"></div>
-            <div class="needle" id="needle"></div>
+    <!-- ───────── Вкладка: Эфир (вещание в FM) ───────── -->
+    <section class="tab is-active" data-tab="broadcast">
+      <div class="panels">
+        <article class="panel panel--wide onair" id="onair" data-state="idle">
+          <div class="panel__head">
+            <h2>Мой эфир</h2>
+            <span class="onair__lamp" id="onair-lamp">В ЭФИРЕ</span>
+            <span class="net" id="net"><span class="net__dot"></span><span id="net-text">нет связи</span></span>
           </div>
-          <span class="scale__band">FM</span>
-          <span class="scale__unit">МГц</span>
-        </div>
+
+          <div class="onair__grid">
+            <label class="field">
+              <span class="field__label">Позывной</span>
+              <input class="input" id="onair-name" maxlength="24" placeholder="НОЧНАЯ ВОЛНА" autocomplete="off">
+            </label>
+            <div class="field">
+              <label class="field__label" for="onair-freq">Частота, МГц</label>
+              <div class="field__row">
+                <input class="input" id="onair-freq" inputmode="decimal" placeholder="101.30" autocomplete="off">
+                <button class="btn" id="onair-take" type="button" title="Взять частоту, на которую настроен приёмник">Со шкалы</button>
+              </div>
+            </div>
+            <label class="field">
+              <span class="field__label">Ключ канала</span>
+              <input class="input" id="onair-key" maxlength="64" placeholder="без шифрования" autocomplete="off" spellcheck="false">
+            </label>
+            <fieldset class="field">
+              <legend class="field__label">Источник</legend>
+              <div class="field__row">
+                <label class="toggle"><input type="checkbox" id="src-mic" checked><span>Микрофон</span></label>
+                <label class="toggle" title="Слышать свою станцию в приёмнике так же, как её слышат другие. Лучше в наушниках — иначе микрофон услышит динамики">
+                  <input type="checkbox" id="src-monitor" checked><span>Слышать себя</span>
+                </label>
+                <label class="toggle toggle--file" id="track-pick">
+                  <input class="visually-hidden" type="file" id="src-track" accept="audio/*" multiple>
+                  <span>Треки…</span>
+                </label>
+              </div>
+              <div class="field__row field__row--radio">
+                <input class="input" id="net-radio-url" spellcheck="false" autocomplete="off"
+                       placeholder="URL интернет-радио, напр. http://stream.example/radio" aria-label="URL интернет-радио">
+                <button class="btn" id="net-radio-toggle" type="button">Радио в эфир</button>
+              </div>
+              <p class="hint" id="net-radio-status" hidden></p>
+            </fieldset>
+            <fieldset class="field">
+              <legend class="field__label">Режим</legend>
+              <div class="field__row">
+                <label class="toggle"><input type="radio" name="onair-mode" value="continuous" checked><span>Постоянный</span></label>
+                <label class="toggle"><input type="radio" name="onair-mode" value="ptt"><span>Рация</span></label>
+              </div>
+            </fieldset>
+          </div>
+
+          <div class="playlist" id="playlist">
+            <div class="playlist__head">
+              <span class="field__label">Плейлист <span id="playlist-count"></span></span>
+              <div class="playlist__controls">
+                <label class="toggle toggle--sm"><input type="radio" name="playlist-mode" value="order" checked><span>По кругу</span></label>
+                <label class="toggle toggle--sm"><input type="radio" name="playlist-mode" value="shuffle"><span>Случайно</span></label>
+                <button class="btn btn--sm" id="playlist-next" type="button">Следующий ▶▶</button>
+              </div>
+            </div>
+            <ol class="playlist__list" id="playlist-list"></ol>
+            <p class="playlist__empty" id="playlist-empty">Перетащите сюда аудиофайлы или нажмите «Треки…». Они будут играть по очереди, пока вы в эфире.</p>
+          </div>
+
+          <div class="onair__actions">
+            <button class="btn btn--onair" id="onair-toggle" type="button">Выйти в эфир</button>
+            <button class="ptt" id="ptt" type="button" hidden>Держите, чтобы говорить <kbd>Пробел</kbd></button>
+            <div class="vu" aria-hidden="true"><span class="vu__bar" id="vu-bar"></span></div>
+          </div>
+          <p class="hint" id="onair-status"></p>
+        </article>
       </div>
+    </section>
 
-      <div class="radio__body">
-        <div class="grille" aria-hidden="true"></div>
+    <!-- ───────── Вкладка: Сервер (подключение, хост, оповещения, бот) ───────── -->
+    <section class="tab" data-tab="server" hidden>
+      <div class="panels">
+        <article class="panel panel--wide server" id="server-panel" hidden>
+          <div class="panel__head">
+            <h2>Сервер эфира</h2>
+            <span class="net" id="server-net"><span class="net__dot"></span><span id="server-net-text">не подключено</span></span>
+          </div>
+          <form class="server__connect" id="server-form" autocomplete="off">
+            <input class="input" id="server-address" spellcheck="false"
+                   placeholder="адрес сервера: 93.184.1.2:8765 или radio.example.ru" aria-label="Адрес сервера">
+            <button class="btn" type="submit">Подключиться</button>
+          </form>
+          <ul class="chips" id="server-recent"></ul>
+          <label class="toggle server__auto"><input type="checkbox" id="server-auto" checked><span>Подключаться при запуске</span></label>
+          <div class="server__host">
+            <button class="btn btn--amber" type="button" id="host-toggle">Открыть свой сервер</button>
+            <div class="server__host-info" id="host-info"></div>
+          </div>
+          <div class="server__notice" id="notice-box">
+            <div class="server__notice-title">Оповестить всех в эфире</div>
+            <div class="server__notice-btns">
+              <button class="btn" type="button" data-notice="update">Обновление</button>
+              <button class="btn" type="button" data-notice="restart">Перезапуск</button>
+              <button class="btn" type="button" data-notice="shutdown">Выключение</button>
+              <button class="btn btn--amber" type="button" data-notice="live">В работе</button>
+            </div>
+            <input class="input" id="notice-text" maxlength="120" spellcheck="false"
+                   placeholder="можно добавить текст, напр. «вернусь через 5 минут»" aria-label="Текст оповещения">
+            <p class="server__notice-status hint" id="notice-status"></p>
+          </div>
+        </article>
 
-        <div class="display">
-          <div class="display__row">
-            <div class="freq"><span id="freq">97.20</span><small>МГц</small></div>
-            <div class="flags">
-              <span class="flag" id="flag-rds">RDS</span>
-              <span class="flag" id="flag-st">ST</span>
-              <span class="flag flag--enc" id="flag-enc">ШИФР</span>
-            </div>
+        <article class="panel panel--wide bot" id="bot-panel">
+          <div class="panel__head">
+            <h2>Телеграм-бот</h2>
+            <span class="net" id="bot-net"><span class="net__dot"></span><span id="bot-net-text">выключен</span></span>
           </div>
-          <div class="rds" id="rds">ПИТАНИЕ ВЫКЛ.</div>
-          <div class="smeter">
-            <span class="smeter__label">СИГНАЛ</span>
-            <div class="smeter__bars" id="smeter-bars"></div>
+          <p class="hint">Управляйте станцией из Телеграма — без RDP на сервер: статус эфира, вкл/выкл, частота, оповещения, интернет-радио. Бот сам ходит в Телеграм, серверу не нужен открытый порт.</p>
+          <label class="field">
+            <span class="field__label">Токен бота (от @BotFather)</span>
+            <input class="input" id="bot-token" spellcheck="false" autocomplete="off" placeholder="123456789:AA...">
+          </label>
+          <label class="field">
+            <span class="field__label">Пароль доступа <span class="muted">— для команды /login в чате</span></span>
+            <input class="input" id="bot-password" type="password" autocomplete="new-password" placeholder="кодовое слово">
+          </label>
+          <div class="btn-row">
+            <button class="btn btn--amber" id="bot-save" type="button">Сохранить и запустить</button>
+            <button class="btn" id="bot-forget" type="button">Забыть доверенные чаты</button>
           </div>
-          <canvas class="scope" id="scope" aria-hidden="true"></canvas>
-        </div>
+          <p class="hint" id="bot-status"></p>
+          <p class="hint">В Телеграме: найдите своего бота → <b>/login ваш_пароль</b> → <b>/help</b>. Дальше — командами или просто текстом (уйдёт оповещением в эфир).</p>
+        </article>
 
-        <div class="controls">
-          <div class="knob-wrap">
-            <div class="knob knob--small" id="knob-vol" tabindex="0" role="slider" aria-label="Громкость"
-                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="70">
-              <div class="knob__body" id="knob-vol-body"><span class="knob__mark"></span></div>
-            </div>
-            <span class="knob-label">ГРОМКОСТЬ</span>
+        <article class="panel panel--wide">
+          <h2>Обновления <span class="muted" id="upd-ver"></span></h2>
+          <div class="btn-row">
+            <button class="btn" id="upd-auto" type="button" aria-pressed="true">✓ Обновлять автоматически</button>
+            <button class="btn" id="upd-check" type="button">Проверить сейчас</button>
+            <button class="btn" id="upd-log" type="button">📋 История изменений</button>
+            <button class="btn" id="upd-look" type="button">🎨 Внешний вид</button>
           </div>
-          <div class="knob-wrap">
-            <div class="knob knob--big" id="knob-tune" tabindex="0" role="slider" aria-label="Ручка настройки"
-                 aria-valuemin="87.5" aria-valuemax="108" aria-valuenow="97.2">
-              <div class="knob__body" id="knob-tune-body"><span class="knob__dimple"></span></div>
-            </div>
-            <span class="knob-label">НАСТРОЙКА</span>
+          <p class="hint">Новые версии берутся из релизов GitHub и ставятся, когда станция не в эфире (или сразу — по кнопке, когда обновление скачано).</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ───────── Вкладка: Приём (тюнер, декодер, ключи, журнал) ───────── -->
+    <section class="tab" data-tab="reception" hidden>
+      <section class="radio" id="radio" data-power="off" aria-label="Радиоприёмник">
+        <header class="radio__top">
+          <div class="brand">
+            <span class="brand__name">РАДИО</span>
+            <span class="brand__model">эфир · прототип 0.1</span>
           </div>
-          <div class="seek">
-            <button class="btn" id="seek-down" type="button" aria-label="Поиск вниз по шкале">◀◀</button>
-            <span class="seek__label">ПОИСК</span>
-            <button class="btn" id="seek-up" type="button" aria-label="Поиск вверх по шкале">▶▶</button>
-            <button class="btn btn--lamp" id="squelch" type="button" aria-pressed="false"
-                    aria-label="Шумоподавитель" title="Шумоподавитель: тишина, пока нет сильного сигнала">
-              <span class="lamp" aria-hidden="true"></span>ШП
+          <div class="radio__actions">
+            <button class="power" id="power" type="button" aria-pressed="false">
+              <span class="power__lamp" aria-hidden="true"></span>
+              <span class="power__text">ВКЛ</span>
             </button>
           </div>
+        </header>
+
+        <div class="scale" id="scale" tabindex="0" role="slider" aria-label="Шкала настройки"
+             aria-valuemin="87.5" aria-valuemax="108" aria-valuenow="97.2">
+          <div class="scale__glass">
+            <div class="scale__track" id="track">
+              <div id="ticks"></div>
+              <div id="marks"></div>
+              <div class="needle" id="needle"></div>
+            </div>
+            <span class="scale__band">FM</span>
+            <span class="scale__unit">МГц</span>
+          </div>
         </div>
+
+        <div class="radio__body">
+          <div class="grille" aria-hidden="true"></div>
+
+          <div class="display">
+            <div class="display__row">
+              <div class="freq"><span id="freq">97.20</span><small>МГц</small></div>
+              <div class="flags">
+                <span class="flag" id="flag-rds">RDS</span>
+                <span class="flag" id="flag-st">ST</span>
+                <span class="flag flag--enc" id="flag-enc">ШИФР</span>
+              </div>
+            </div>
+            <div class="rds" id="rds">ПИТАНИЕ ВЫКЛ.</div>
+            <div class="smeter">
+              <span class="smeter__label">СИГНАЛ</span>
+              <div class="smeter__bars" id="smeter-bars"></div>
+            </div>
+            <canvas class="scope" id="scope" aria-hidden="true"></canvas>
+          </div>
+
+          <div class="controls">
+            <div class="knob-wrap">
+              <div class="knob knob--small" id="knob-vol" tabindex="0" role="slider" aria-label="Громкость"
+                   aria-valuemin="0" aria-valuemax="100" aria-valuenow="70">
+                <div class="knob__body" id="knob-vol-body"><span class="knob__mark"></span></div>
+              </div>
+              <span class="knob-label">ГРОМКОСТЬ</span>
+            </div>
+            <div class="knob-wrap">
+              <div class="knob knob--big" id="knob-tune" tabindex="0" role="slider" aria-label="Ручка настройки"
+                   aria-valuemin="87.5" aria-valuemax="108" aria-valuenow="97.2">
+                <div class="knob__body" id="knob-tune-body"><span class="knob__dimple"></span></div>
+              </div>
+              <span class="knob-label">НАСТРОЙКА</span>
+            </div>
+            <div class="seek">
+              <button class="btn" id="seek-down" type="button" aria-label="Поиск вниз по шкале">◀◀</button>
+              <span class="seek__label">ПОИСК</span>
+              <button class="btn" id="seek-up" type="button" aria-label="Поиск вверх по шкале">▶▶</button>
+              <button class="btn btn--lamp" id="squelch" type="button" aria-pressed="false"
+                      aria-label="Шумоподавитель" title="Шумоподавитель: тишина, пока нет сильного сигнала">
+                <span class="lamp" aria-hidden="true"></span>ШП
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="panels">
+        <article class="panel">
+          <h2>Декодер Морзе</h2>
+          <div class="decoder">
+            <span id="decoder-text"></span><span class="cursor" aria-hidden="true">▌</span>
+          </div>
+          <p class="hint">Разбирает на слух любую станцию — маяк или живой эфир. Чем точнее настройка и меньше помех, тем меньше ошибок.</p>
+        </article>
+
+        <article class="panel">
+          <h2>Ключи шифрования</h2>
+          <form class="key-form" id="key-form" autocomplete="off">
+            <input class="input" id="key-input" placeholder="Ключ" aria-label="Ключ шифрования" maxlength="32">
+            <button class="btn btn--amber" type="submit">Добавить</button>
+          </form>
+          <ul class="chips" id="key-list"></ul>
+          <p class="hint">Без ключа шифрованный канал звучит как цифровой треск. Ключи иногда передают прямо в эфире, а для живых каналов их сообщают сами ведущие.</p>
+        </article>
+
+        <article class="panel">
+          <h2>Журнал эфира</h2>
+          <ol class="log" id="log"></ol>
+          <p class="hint" id="log-empty">Пока пусто. Станция попадает в журнал, если удержать её на шкале пару секунд. Любительские станции записываются с позывным и временем.</p>
+        </article>
       </div>
+
+      <p class="help">
+        Ручка настройки: тяните по кругу или крутите колесо мыши (<kbd>Shift</kbd> — крупный шаг).
+        Шкалу можно тянуть мышью. <kbd>←</kbd> <kbd>→</kbd> — шаг 0,05 МГц, <kbd>PgUp</kbd> <kbd>PgDn</kbd> — поиск.
+        Поиск ловит только сильные станции — слабые ищите вручную.
+      </p>
     </section>
-
-    <section class="panels">
-      <article class="panel panel--wide server" id="server-panel" hidden>
-        <div class="panel__head">
-          <h2>Сервер</h2>
-          <span class="net" id="server-net"><span class="net__dot"></span><span id="server-net-text">не подключено</span></span>
-        </div>
-        <form class="server__connect" id="server-form" autocomplete="off">
-          <input class="input" id="server-address" spellcheck="false"
-                 placeholder="адрес сервера: 93.184.1.2:8765 или radio.example.ru" aria-label="Адрес сервера">
-          <button class="btn" type="submit">Подключиться</button>
-        </form>
-        <ul class="chips" id="server-recent"></ul>
-        <label class="toggle server__auto"><input type="checkbox" id="server-auto" checked><span>Подключаться при запуске</span></label>
-        <div class="server__host">
-          <button class="btn btn--amber" type="button" id="host-toggle">Открыть свой сервер</button>
-          <div class="server__host-info" id="host-info"></div>
-        </div>
-        <div class="server__notice" id="notice-box">
-          <div class="server__notice-title">Оповестить всех в эфире</div>
-          <div class="server__notice-btns">
-            <button class="btn" type="button" data-notice="update">Обновление</button>
-            <button class="btn" type="button" data-notice="restart">Перезапуск</button>
-            <button class="btn" type="button" data-notice="shutdown">Выключение</button>
-            <button class="btn btn--amber" type="button" data-notice="live">В работе</button>
-          </div>
-          <input class="input" id="notice-text" maxlength="120" spellcheck="false"
-                 placeholder="можно добавить текст, напр. «вернусь через 5 минут»" aria-label="Текст оповещения">
-          <p class="server__notice-status hint" id="notice-status"></p>
-        </div>
-      </article>
-
-      <article class="panel panel--wide onair" id="onair" data-state="idle">
-        <div class="panel__head">
-          <h2>Мой эфир</h2>
-          <span class="onair__lamp" id="onair-lamp">В ЭФИРЕ</span>
-          <span class="net" id="net"><span class="net__dot"></span><span id="net-text">нет связи</span></span>
-        </div>
-
-        <div class="onair__grid">
-          <label class="field">
-            <span class="field__label">Позывной</span>
-            <input class="input" id="onair-name" maxlength="24" placeholder="НОЧНАЯ ВОЛНА" autocomplete="off">
-          </label>
-          <div class="field">
-            <label class="field__label" for="onair-freq">Частота, МГц</label>
-            <div class="field__row">
-              <input class="input" id="onair-freq" inputmode="decimal" placeholder="101.30" autocomplete="off">
-              <button class="btn" id="onair-take" type="button" title="Взять частоту, на которую настроен приёмник">Со шкалы</button>
-            </div>
-          </div>
-          <label class="field">
-            <span class="field__label">Ключ канала</span>
-            <input class="input" id="onair-key" maxlength="64" placeholder="без шифрования" autocomplete="off" spellcheck="false">
-          </label>
-          <fieldset class="field">
-            <legend class="field__label">Источник</legend>
-            <div class="field__row">
-              <label class="toggle"><input type="checkbox" id="src-mic" checked><span>Микрофон</span></label>
-              <label class="toggle" title="Слышать свою станцию в приёмнике так же, как её слышат другие. Лучше в наушниках — иначе микрофон услышит динамики">
-                <input type="checkbox" id="src-monitor" checked><span>Слышать себя</span>
-              </label>
-              <label class="toggle toggle--file" id="track-pick">
-                <input class="visually-hidden" type="file" id="src-track" accept="audio/*" multiple>
-                <span>Треки…</span>
-              </label>
-            </div>
-            <div class="field__row field__row--radio">
-              <input class="input" id="net-radio-url" spellcheck="false" autocomplete="off"
-                     placeholder="URL интернет-радио, напр. http://stream.example/radio" aria-label="URL интернет-радио">
-              <button class="btn" id="net-radio-toggle" type="button">Радио в эфир</button>
-            </div>
-            <p class="hint" id="net-radio-status" hidden></p>
-          </fieldset>
-          <fieldset class="field">
-            <legend class="field__label">Режим</legend>
-            <div class="field__row">
-              <label class="toggle"><input type="radio" name="onair-mode" value="continuous" checked><span>Постоянный</span></label>
-              <label class="toggle"><input type="radio" name="onair-mode" value="ptt"><span>Рация</span></label>
-            </div>
-          </fieldset>
-        </div>
-
-        <div class="playlist" id="playlist">
-          <div class="playlist__head">
-            <span class="field__label">Плейлист <span id="playlist-count"></span></span>
-            <div class="playlist__controls">
-              <label class="toggle toggle--sm"><input type="radio" name="playlist-mode" value="order" checked><span>По кругу</span></label>
-              <label class="toggle toggle--sm"><input type="radio" name="playlist-mode" value="shuffle"><span>Случайно</span></label>
-              <button class="btn btn--sm" id="playlist-next" type="button">Следующий ▶▶</button>
-            </div>
-          </div>
-          <ol class="playlist__list" id="playlist-list"></ol>
-          <p class="playlist__empty" id="playlist-empty">Перетащите сюда аудиофайлы или нажмите «Треки…». Они будут играть по очереди, пока вы в эфире.</p>
-        </div>
-
-        <div class="onair__actions">
-          <button class="btn btn--onair" id="onair-toggle" type="button">Выйти в эфир</button>
-          <button class="ptt" id="ptt" type="button" hidden>Держите, чтобы говорить <kbd>Пробел</kbd></button>
-          <div class="vu" aria-hidden="true"><span class="vu__bar" id="vu-bar"></span></div>
-        </div>
-        <p class="hint" id="onair-status"></p>
-      </article>
-
-      <article class="panel">
-        <h2>Декодер Морзе</h2>
-        <div class="decoder">
-          <span id="decoder-text"></span><span class="cursor" aria-hidden="true">▌</span>
-        </div>
-        <p class="hint">Разбирает на слух любую станцию — маяк или живой эфир. Чем точнее настройка и меньше помех, тем меньше ошибок.</p>
-      </article>
-
-      <article class="panel">
-        <h2>Ключи шифрования</h2>
-        <form class="key-form" id="key-form" autocomplete="off">
-          <input class="input" id="key-input" placeholder="Ключ" aria-label="Ключ шифрования" maxlength="32">
-          <button class="btn btn--amber" type="submit">Добавить</button>
-        </form>
-        <ul class="chips" id="key-list"></ul>
-        <p class="hint">Без ключа шифрованный канал звучит как цифровой треск. Ключи иногда передают прямо в эфире, а для живых каналов их сообщают сами ведущие.</p>
-      </article>
-
-      <article class="panel">
-        <h2>Журнал эфира</h2>
-        <ol class="log" id="log"></ol>
-        <p class="hint" id="log-empty">Пока пусто. Станция попадает в журнал, если удержать её на шкале пару секунд. Любительские станции записываются с позывным и временем.</p>
-      </article>
-
-      <article class="panel">
-        <h2>Обновления <span class="muted" id="upd-ver"></span></h2>
-        <div class="btn-row">
-          <button class="btn" id="upd-auto" type="button" aria-pressed="true">✓ Обновлять автоматически</button>
-          <button class="btn" id="upd-check" type="button">Проверить сейчас</button>
-          <button class="btn" id="upd-log" type="button">📋 История изменений</button>
-          <button class="btn" id="upd-look" type="button">🎨 Внешний вид</button>
-        </div>
-        <p class="hint">Новые версии берутся из релизов GitHub и ставятся, когда станция не в эфире (или сразу — по кнопке, когда обновление скачано). Внешний вид станции меняется в редакторе (кнопка 🎨 наверху): темы, дисплей, цвета, фон, шрифты.</p>
-      </article>
-    </section>
-
-    <p class="help">
-      Ручка настройки: тяните по кругу или крутите колесо мыши (<kbd>Shift</kbd> — крупный шаг).
-      Шкалу можно тянуть мышью. <kbd>←</kbd> <kbd>→</kbd> — шаг 0,05 МГц, <kbd>PgUp</kbd> <kbd>PgDn</kbd> — поиск.
-      Поиск ловит только сильные станции — слабые ищите вручную.
-    </p>
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

@@ -280,8 +280,8 @@
         break;
       case 'server-notice': {
         // Оповещение от хозяина сервера — показываем всем на канале (обновление, перезапуск и т.д.)
-        const labels = { update: 'ОБНОВЛЕНИЕ', restart: 'ПЕРЕЗАПУСК', shutdown: 'ВЫКЛЮЧЕНИЕ', live: 'В РАБОТЕ' };
-        const nice = { update: 'Идёт обновление сервера', restart: 'Сервер перезапускается', shutdown: 'Сервер выключается', live: 'Сервер снова в работе' };
+        const labels = { update: 'ОБНОВЛЕНИЕ', restart: 'ПЕРЕЗАПУСК', shutdown: 'ВЫКЛЮЧЕНИЕ', live: 'В РАБОТЕ', msg: 'СООБЩЕНИЕ' };
+        const nice = { update: 'Идёт обновление сервера', restart: 'Сервер перезапускается', shutdown: 'Сервер выключается', live: 'Сервер снова в работе', msg: 'Сообщение от хозяина эфира' };
         const label = labels[msg.state] || 'СООБЩЕНИЕ';
         const text = String(msg.text || '').slice(0, 120);
         flash(`СЕРВЕР: ${label}${text ? ` · ${text.toUpperCase()}` : ''}`, 8000);

@@ -771,7 +771,7 @@
         break;
       case 'server-notice': {
         // Оповещение от хозяина сервера (когда мы подключены к чужому эфиру) — показываем тостом
-        const labels = { update: 'Обновление', restart: 'Перезапуск', shutdown: 'Выключение', live: 'В работе' };
+        const labels = { update: 'Обновление', restart: 'Перезапуск', shutdown: 'Выключение', live: 'В работе', msg: 'Сообщение' };
         toast(`Сервер: ${labels[msg.state] || 'сообщение'}${msg.text ? ` · ${msg.text}` : ''}`);
         break;
       }
@@ -997,6 +997,181 @@
   }
 
   els.netRadioToggle.addEventListener('click', () => { toggleNetRadio(); });
+
+  /* ───────── Телеграм-бот: команды из main-процесса ───────── */
+
+  if (desktop && desktop.onBotCommand) {
+    const sourceLabel = () =>
+      netRadio.active ? 'интернет-радио' : broadcaster.trackPlaying ? 'плейлист' : els.srcMic.checked ? 'микрофон' : '—';
+    const botStatus = () => {
+      const conn = link.online ? 'на связи' : 'нет связи';
+      if (!broadcast.active) return `📻 Станция: не в эфире. Сервер: ${conn}.`;
+      return `🔴 В эфире ${broadcast.freq.toFixed(2)} МГц · «${broadcast.name || ''}»\nСлушателей: ${broadcast.listeners} · источник: ${sourceLabel()} · сервер: ${conn}.`;
+    };
+    const noticeStates = {
+      обновление: 'update', перезапуск: 'restart', выключение: 'shutdown', работа: 'live',
+      update: 'update', restart: 'restart', shutdown: 'shutdown', live: 'live',
+    };
+
+    desktop.onBotCommand(async (m) => {
+      let answer;
+      try {
+        const args = m.args || '';
+        switch (m.cmd) {
+          case 'help':
+          case 'start':
+            answer = [
+              '📻 Эфир:',
+              '/status — что сейчас в эфире',
+              '/on [частота] — выйти в эфир',
+              '/off — закончить эфир',
+              '/freq 101.5 — сменить частоту',
+              '/next — следующий трек',
+              '/radio <url> — интернет-радио в эфир',
+              '/radio_off — выключить радио',
+              '',
+              '📡 Сервер:',
+              '/server_on — открыть свой сервер',
+              '/server_off — закрыть свой сервер',
+              '/notice обновление|перезапуск|выключение|работа [текст] — оповестить всех',
+              '',
+              '⚙️ Станция:',
+              '/station_off — свернуть в фон (эфир и сервер стоп, бот на связи)',
+              '/station_on — вернуть из фона',
+              '/restart — перезапустить приложение',
+              '/quit — полностью выключить (обратно из ТГ не поднять)',
+              '/check — проверить обновления',
+              '/update — обновить станцию',
+              '',
+              'Просто текст — оповещение всем в эфире.',
+            ].join('\n');
+            break;
+          case 'status':
+            answer = botStatus();
+            break;
+          case 'on': {
+            const f = parseFloat(args.replace(',', '.'));
+            if (Number.isFinite(f)) els.onairFreq.value = f.toFixed(2);
+            if (!broadcast.active) await goOnAir();
+            answer = broadcast.active ? '✅ ' + botStatus() : '⚠️ Не вышло в эфир — проверьте частоту и связь с сервером.';
+            break;
+          }
+          case 'off':
+            if (broadcast.active) await goOffAir();
+            answer = '⏹ Эфир остановлен.';
+            break;
+          case 'freq': {
+            const f = parseFloat(args.replace(',', '.'));
+            if (!Number.isFinite(f)) { answer = 'Формат: /freq 101.5'; break; }
+            els.onairFreq.value = f.toFixed(2);
+            if (broadcast.active) { await goOffAir(); await goOnAir(); }
+            answer = `📻 Частота: ${f.toFixed(2)} МГц.`;
+            break;
+          }
+          case 'notice': {
+            if (!link.online) { answer = 'Нет связи с сервером — оповещение не отправить.'; break; }
+            const sp = args.indexOf(' ');
+            const key = (sp < 0 ? args : args.slice(0, sp)).toLowerCase();
+            const state = noticeStates[key];
+            if (!state) { answer = 'Формат: /notice обновление|перезапуск|выключение|работа [текст]'; break; }
+            const text = sp < 0 ? '' : args.slice(sp + 1).trim();
+            link.send({ type: 'notice', state, text });
+            answer = `📢 Отправлено: ${key}${text ? ' · ' + text : ''}.`;
+            break;
+          }
+          case 'radio': {
+            if (!args.trim()) { answer = 'Формат: /radio http://адрес-потока'; break; }
+            els.netRadioUrl.value = args.trim();
+            if (!netRadio.active) await toggleNetRadio();
+            answer = '🎵 Интернет-радио включено' + (broadcast.active ? ' в эфир.' : ' — заиграет при выходе в эфир.');
+            break;
+          }
+          case 'radio_off':
+            if (netRadio.active) await toggleNetRadio();
+            answer = '⏹ Интернет-радио выключено.';
+            break;
+          case 'next':
+            if (broadcast.active && !netRadio.active) { playNext(); answer = '⏭ Следующий трек.'; }
+            else answer = 'Плейлист играет только в эфире и без интернет-радио.';
+            break;
+          case 'server_on':
+            if (serverState.hosting) { answer = 'Свой сервер уже открыт.'; break; }
+            await startHosting();
+            answer = serverState.hosting ? '📡 Свой сервер открыт.' : '⚠️ Не удалось открыть сервер.';
+            break;
+          case 'server_off':
+            if (!serverState.hosting) { answer = 'Свой сервер и так не запущен.'; break; }
+            await stopHosting();
+            answer = '📡 Свой сервер закрыт.';
+            break;
+          case 'stopall': // из /station_off: остановить эфир и свой сервер
+            if (broadcast.active) await goOffAir();
+            if (serverState.hosting) await stopHosting();
+            answer = '';
+            break;
+          case 'say':
+            if (!link.online) { answer = 'Нет связи с сервером.'; break; }
+            link.send({ type: 'notice', state: 'msg', text: args.slice(0, 120) });
+            answer = '📢 Отправлено в эфир.';
+            break;
+          default:
+            answer = 'Не понял команду. /help — список.';
+        }
+      } catch (e) {
+        answer = '⚠️ ' + (e && e.message ? e.message : 'ошибка');
+      }
+      desktop.botAnswer(m.id, answer || 'ок');
+    });
+  }
+
+  /* ───────── Вкладки: Эфир · Сервер · Приём ───────── */
+  {
+    const tabs = document.getElementById('tabs');
+    const panes = document.querySelectorAll('.tab[data-tab]');
+    if (tabs) {
+      tabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-tabbtn]');
+        if (!btn) return;
+        const name = btn.getAttribute('data-tabbtn');
+        tabs.querySelectorAll('[data-tabbtn]').forEach((b) => b.classList.toggle('is-active', b === btn));
+        panes.forEach((p) => {
+          const on = p.getAttribute('data-tab') === name;
+          p.hidden = !on;
+          p.classList.toggle('is-active', on);
+        });
+      });
+    }
+  }
+
+  /* ───────── Настройки телеграм-бота ───────── */
+  if (desktop && desktop.telegramGet) {
+    const botToken = $('bot-token');
+    const botPass = $('bot-password');
+    const botStatusEl = $('bot-status');
+    const botNet = $('bot-net');
+    const botNetText = $('bot-net-text');
+    const showBot = (s) => {
+      const running = Boolean(s && s.running);
+      if (botNet) botNet.classList.toggle('is-online', running);
+      if (botNetText) botNetText.textContent = running ? (s.username ? `@${s.username}` : 'работает') : 'выключен';
+      if (botStatusEl) {
+        if (s && s.error) botStatusEl.textContent = '⚠️ ' + s.error;
+        else if (running) botStatusEl.textContent = `Бот работает. Доверенных чатов: ${s.chats || 0}.${s.hasPassword ? '' : ' Внимание: пароль не задан!'}`;
+        else botStatusEl.textContent = 'Бот выключен — впишите токен и пароль, затем «Сохранить и запустить».';
+      }
+    };
+    desktop.telegramGet().then((s) => { if (s && botToken) botToken.value = s.token || ''; showBot(s); }).catch(() => {});
+    $('bot-save')?.addEventListener('click', async () => {
+      if (botStatusEl) botStatusEl.textContent = 'Подключаюсь к Телеграму…';
+      const s = await desktop.telegramSet({ token: botToken.value.trim(), password: botPass.value }).catch(() => ({ error: 'сбой связи' }));
+      showBot(s);
+    });
+    $('bot-forget')?.addEventListener('click', async () => {
+      const s = await desktop.telegramSet({ forget: true }).catch(() => null);
+      showBot(s);
+      if (botStatusEl) botStatusEl.textContent = 'Доверенные чаты забыты — войдите заново через /login в боте.';
+    });
+  }
 
   function addTracks(files) {
     const tracks = [...files].filter((f) => f.type.startsWith('audio/') || AUDIO_EXT.test(f.name));
