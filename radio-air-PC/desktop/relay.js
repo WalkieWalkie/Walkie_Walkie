@@ -130,7 +130,16 @@ class StreamRelay {
     if (!keepActive) this.active = false;
     clearTimeout(this.timer); this.timer = null;
     clearTimeout(this.restartTimer); this.restartTimer = null;
-    if (this.ff) { try { this.ff.kill('SIGKILL'); } catch { /* уже мёртв */ } this.ff = null; }
+    if (this.ff) {
+      const pid = this.ff.pid;
+      try { this.ff.kill('SIGKILL'); } catch { /* уже мёртв */ }
+      // На Windows kill не всегда снимает дерево процессов ffmpeg — добиваем taskkill,
+      // иначе ffmpeg висит и держит файлы (мешает установщику обновления).
+      if (process.platform === 'win32' && pid) {
+        try { spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true, timeout: 4000 }); } catch { /* и так убит */ }
+      }
+      this.ff = null;
+    }
     this.buf = Buffer.alloc(0);
     if (!keepActive && this.onState) this.onState('stopped');
   }

@@ -1,7 +1,7 @@
 {
   "name": "radio-air",
   "productName": "Радио",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Эмулятор радиоэфира: живые станции, рация, шифрование",
   "author": "Radio",
   "private": true,
@@ -78,7 +78,8 @@
       "oneClick": true,
       "perMachine": false,
       "artifactName": "Radio-Setup-${version}.exe",
-      "shortcutName": "Радио"
+      "shortcutName": "Радио",
+      "include": "build/installer.nsh"
     },
     "npmRebuild": false
   },

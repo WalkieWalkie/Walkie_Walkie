@@ -544,8 +544,28 @@ function bundledFfmpeg() {
   } catch { return ''; }
 }
 
+// Вшитый ffmpeg запускаем ИЗ КОПИИ в userData, а не из папки установки. Иначе запущенный
+// ffmpeg держит ffmpeg.exe в каталоге программы, и установщик обновления не может заменить
+// файлы — Windows пишет «не удалось закрыть Радио». Копия вне каталога установки этого не ловит.
+function runtimeFfmpeg() {
+  const bundled = bundledFfmpeg();
+  if (!prefs.relay.ffmpeg && bundled) {
+    try {
+      if (fs.existsSync(bundled)) {
+        const dest = path.join(app.getPath('userData'), process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+        if (!fs.existsSync(dest) || fs.statSync(dest).size !== fs.statSync(bundled).size) {
+          fs.copyFileSync(bundled, dest);
+          if (process.platform !== 'win32') fs.chmodSync(dest, 0o755);
+        }
+        return dest; // копия вне каталога установки
+      }
+    } catch { /* не вышло скопировать — упадём на обычный путь ниже */ }
+  }
+  return '';
+}
+
 function resolveRelayFfmpeg() {
-  return ffmpegPath(prefs.relay.ffmpeg, bundledFfmpeg());
+  return ffmpegPath(prefs.relay.ffmpeg, runtimeFfmpeg() || bundledFfmpeg());
 }
 
 function relayStart(url) {
