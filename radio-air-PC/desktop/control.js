@@ -85,9 +85,12 @@ button:active{transform:translateY(1px)}
       </div>
     </div>
 
-    <div class="card"><h2>Интернет-радио</h2>
+    <div class="card"><h2>Интернет-радио → эфир</h2>
       <div class="row"><input id="radio-url" class="grow" placeholder="URL потока (http://…)"><button class="b-amber" id="radio-on">В эфир</button></div>
       <div class="row" style="margin-top:8px"><button class="b-wide" data-cmd="radio_off">Выключить радио</button></div>
+      <div class="row" style="margin-top:8px"><input id="air-name" class="grow" maxlength="24" placeholder="позывной эфира (напр. Радио)"><button id="air-name-save">Позывной</button></div>
+      <div class="row" style="margin-top:8px"><input id="ff-path" class="grow" placeholder="путь к ffmpeg (пусто = из PATH)"><button id="ff-save">ffmpeg</button></div>
+      <p class="hint">Поток тянет сам сервер через ffmpeg — окну считать звук не надо, поэтому эфир не заикается. На сервере нужен установленный ffmpeg (в PATH) или укажи путь.</p>
     </div>
 
     <div class="card"><h2>Оповестить всех в эфире</h2>
@@ -150,7 +153,9 @@ $('enter').onclick=async()=>{
 $('pass').addEventListener('keydown',(e)=>{if(e.key==='Enter')$('enter').click()});
 $('refresh').onclick=refresh;
 $('freq-set').onclick=()=>cmd('freq',$('freq').value).then(refresh);
-$('radio-on').onclick=()=>cmd('radio',$('radio-url').value).then(refresh);
+$('radio-on').onclick=()=>cmd('radio',$('radio-url').value).then(()=>setTimeout(refresh,600));
+$('air-name-save').onclick=()=>{const v=$('air-name').value.trim();if(v)cmd('name',v)};
+$('ff-save').onclick=()=>cmd('ffmpeg',$('ff-path').value.trim());
 $('notice-send').onclick=()=>{const t=$('notice-text').value.trim();if(t)cmd('say',t)};
 document.querySelectorAll('[data-cmd]').forEach((b)=>b.onclick=()=>{
   const c=b.getAttribute('data-cmd');

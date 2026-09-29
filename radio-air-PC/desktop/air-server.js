@@ -229,6 +229,44 @@ class AirServer {
     }
   }
 
+  // ───────── Локальная станция и оповещения из самого приложения (main) ─────────
+
+  // Виртуальная станция без сокета: звук вливает main (серверная ретрансляция интернет-радио).
+  // Для рассылки она — обычный клиент-владелец эфира, но сама ничего не принимает (заглушка ws).
+  addLocalStation() {
+    const ws = { readyState: 0, OPEN: 1, send() {}, terminate() {} };
+    const client = { id: this.nextId++, ws, freqs: [], station: null, listeners: -1, local: true };
+    this.clients.add(client);
+    return {
+      onAir: (freq, name, monitor = false) => {
+        const f = parseFreq(freq);
+        if (f === null) return false;
+        this.onAir(client, f, cleanName(name), monitor === true);
+        return true;
+      },
+      setFreq: (freq) => {
+        const f = parseFreq(freq);
+        if (f === null || !client.station) return false;
+        client.station.freq = f;
+        this.broadcast({ type: 'station-on', station: client.station.info() }, client);
+        this.updateListeners();
+        return true;
+      },
+      send: (packet) => this.relay(client, Buffer.isBuffer(packet) ? packet : Buffer.from(packet)),
+      offAir: () => { if (client.station) { this.offAir(client); this.updateListeners(); } },
+      close: () => this.leave(client),
+      get onAirNow() { return Boolean(client.station); },
+      get listeners() { return Math.max(0, client.listeners); },
+    };
+  }
+
+  // Оповещение всем подключённым (рациям и станциям) прямо из main — без окна станции.
+  broadcastNotice(state, text) {
+    if (!['update', 'restart', 'shutdown', 'live', 'msg'].includes(state)) return false;
+    this.broadcast({ type: 'server-notice', state, text: String(text || '').trim().slice(0, 120) });
+    return true;
+  }
+
   handleMessage(client, msg) {
     if (msg.type === 'tune') {
       const values = Array.isArray(msg.freqs) ? msg.freqs.slice(0, 4) : [msg.freq];

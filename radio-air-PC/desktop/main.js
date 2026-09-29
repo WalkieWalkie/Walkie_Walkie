@@ -22,6 +22,7 @@ const { AirServer } = require('./air-server');
 const { PortMapper, lanAddresses, isPublicIp, publicAddresses } = require('./upnp');
 const { TelegramBot } = require('./telegram');
 const { ControlServer } = require('./control');
+const { StreamRelay, ffmpegPath } = require('./relay'); // ffmpegPath(configured) → рабочая команда ffmpeg или null
 const { Hotkeys, ACTIONS, DEFAULTS, label } = require('./hotkeys');
 
 const pkg = require('./package.json');
@@ -81,6 +82,7 @@ let prefs = {
   autoUpdate: true, // тихо качать и ставить обновления из релизов GitHub
   telegram: { token: '', password: '', chats: [] }, // управление станцией из Телеграма
   control: { enabled: false, port: 8766, password: '' }, // веб-панель управления (когда ТГ недоступен)
+  relay: { url: '', freq: 101.5, name: 'Радио', ffmpeg: '' }, // серверная ретрансляция интернет-радио (без Web Audio в окне)
 };
 
 function validCombo(c) {
@@ -115,6 +117,12 @@ function loadPrefs() {
         enabled: Boolean(data.control?.enabled),
         port: Number.isInteger(data.control?.port) && data.control.port > 0 && data.control.port < 65536 ? data.control.port : 8766,
         password: typeof data.control?.password === 'string' ? data.control.password : '',
+      },
+      relay: {
+        url: typeof data.relay?.url === 'string' ? data.relay.url : '',
+        freq: Number.isFinite(data.relay?.freq) ? data.relay.freq : 101.5,
+        name: typeof data.relay?.name === 'string' && data.relay.name ? data.relay.name : 'Радио',
+        ffmpeg: typeof data.relay?.ffmpeg === 'string' ? data.relay.ffmpeg : '',
       },
     };
   } catch {
@@ -371,6 +379,7 @@ async function hostStart({ port = 8765, local = false, upnp = true } = {}) {
 
 // keepPort — оставить порт в роутере открытым (сервер работает и без приложения)
 async function hostStop({ keepPort = false } = {}) {
+  relayDetach(); // серверная ретрансляция живёт во встроенном сервере — снять перед закрытием
   const m = mapper;
   const s = server;
   mapper = null;
@@ -517,8 +526,66 @@ const bot = new TelegramBot({
 let botReqId = 0;
 const botPending = new Map();
 
+// ───────── Серверная ретрансляция интернет-радио (в main, без Web Audio в окне) ─────────
+let relay = null;          // StreamRelay
+let relayStation = null;   // локальная станция во встроенном сервере
+let relayState = 'stopped';
+
+// Встроенный сервер, в который можно влить локальную станцию (при reused-сервере — нельзя)
+function localServer() {
+  return server && typeof server.addLocalStation === 'function' ? server : null;
+}
+
+// ffmpeg, вшитый в установщик (extraResources). После обновления лежит рядом — ставить не надо.
+function bundledFfmpeg() {
+  try {
+    const name = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+    return process.resourcesPath ? path.join(process.resourcesPath, name) : '';
+  } catch { return ''; }
+}
+
+function resolveRelayFfmpeg() {
+  return ffmpegPath(prefs.relay.ffmpeg, bundledFfmpeg());
+}
+
+function relayStart(url) {
+  const srv = localServer();
+  if (!srv) return { ok: false, error: 'Сначала открой свой сервер эфира (кнопка «Открыть сервер»).' };
+  if (!url) return { ok: false, error: 'Дай ссылку на поток: /radio http://адрес' };
+  const ffmpeg = resolveRelayFfmpeg();
+  if (!ffmpeg) return { ok: false, error: 'ffmpeg не найден. Обычно он вшит в обновление; если нет — задай путь в настройках или положи ffmpeg в PATH.' };
+  if (!relayStation) relayStation = srv.addLocalStation();
+  if (!relayStation.onAirNow && !relayStation.onAir(prefs.relay.freq, prefs.relay.name)) {
+    return { ok: false, error: 'Частота должна быть 87.5–108 или 400–470 МГц.' };
+  }
+  if (!relay) { relay = new StreamRelay(relayStation); relay.onState = (s) => { relayState = s; }; }
+  try { relay.start(url, ffmpeg); } catch (e) { return { ok: false, error: e && e.message ? e.message : String(e) }; }
+  relayState = 'playing';
+  prefs.relay.url = url;
+  savePrefs();
+  return { ok: true };
+}
+
+function relayStop() {
+  if (relay) relay.stop();
+  if (relayStation) relayStation.offAir();
+  relayState = 'stopped';
+}
+
+// Сервер закрывается — снять ретрансляцию и забыть старую локальную станцию
+function relayDetach() {
+  if (relay) relay.stop();
+  relay = null;
+  relayStation = null;
+  relayState = 'stopped';
+}
+
+const relayActive = () => Boolean(relay && relay.running);
+
 // Команду исполняет окно станции (renderer): там broadcaster, link, плейлист, оповещения.
 // Общий диспатч команд станции — зовут и телеграм-бот, и веб-панель.
+// Часть команд эфира и оповещения делаем прямо в main через встроенный сервер — тогда они
+// не зависят от загруженного рендерера (на слабом сервере окно тормозит и не отвечает вовремя).
 function runStationCommand(cmd, args) {
  return new Promise((resolve) => {
   // Управление самим приложением — прямо в main (окно для этого не нужно)
@@ -563,13 +630,94 @@ function runStationCommand(cmd, args) {
     }
     return;
   }
+  // Настройки серверного эфира — прямо в main, чтобы задавать из панели без RDP
+  if (cmd === 'ffmpeg') {
+    const p = String(args || '').trim();
+    prefs.relay.ffmpeg = p; savePrefs();
+    const found = resolveRelayFfmpeg();
+    resolve(found ? `✅ ffmpeg найден: ${found}. Готово к серверному эфиру.` : '⚠️ ffmpeg не отвечает ни вшитый, ни по пути/в PATH. Проверь установку.');
+    return;
+  }
+  if (cmd === 'name') {
+    const nm = String(args || '').trim().slice(0, 24);
+    if (!nm) { resolve('Формат: /name Моё Радио'); return; }
+    prefs.relay.name = nm; savePrefs();
+    if (relayActive() && relayStation) relayStation.onAir(prefs.relay.freq, nm);
+    resolve(`📻 Позывной эфира: ${nm}.`);
+    return;
+  }
+
+  // Оповещения — прямо из сервера, минуя окно: так они доходят даже когда рендерер занят/спрятан
+  if ((cmd === 'notice' || cmd === 'say') && localServer()) {
+    if (cmd === 'say') {
+      const text = String(args || '').trim().slice(0, 120);
+      resolve(server.broadcastNotice('msg', text) ? '📢 Отправлено в эфир.' : 'Пустое сообщение.');
+      return;
+    }
+    const sp = String(args || '').indexOf(' ');
+    const key = (sp < 0 ? args : String(args).slice(0, sp)).toLowerCase();
+    const map = { обновление: 'update', перезапуск: 'restart', выключение: 'shutdown', работа: 'live', update: 'update', restart: 'restart', shutdown: 'shutdown', live: 'live' };
+    const state = map[key];
+    if (!state) { resolve('Формат: /notice обновление|перезапуск|выключение|работа [текст]'); return; }
+    const text = sp < 0 ? '' : String(args).slice(sp + 1).trim();
+    server.broadcastNotice(state, text);
+    resolve(`📢 Отправлено всем в эфире: ${key}${text ? ' · ' + text : ''}.`);
+    return;
+  }
+
+  // Интернет-радио в эфир — серверной ретрансляцией (ffmpeg в main). Доступно, когда открыт свой сервер.
+  if (cmd === 'radio' && localServer()) {
+    const r = relayStart(String(args || '').trim());
+    resolve(r.ok
+      ? `🎵 Интернет-радио в эфире ${prefs.relay.freq.toFixed(2)} МГц — сервер сам тянет поток, окну ничего считать не надо.`
+      : '⚠️ ' + r.error);
+    return;
+  }
+  if (cmd === 'radio_off' && relayActive()) { relayStop(); resolve('⏹ Ретрансляция остановлена.'); return; }
+
+  // Частоту эфира на своём сервере задаём в main (чтобы можно было выставить до старта потока)
+  if (cmd === 'freq' && localServer()) {
+    const f = parseFloat(String(args).replace(',', '.'));
+    if (!Number.isFinite(f)) { resolve('Формат: /freq 101.5'); return; }
+    prefs.relay.freq = f; savePrefs();
+    if (relayActive() && relayStation) relayStation.setFreq(f);
+    resolve(`📻 Частота: ${f.toFixed(2)} МГц${relayActive() ? '' : ' (применится при выходе в эфир)'}.`);
+    return;
+  }
+
+  // Когда идёт серверная ретрансляция — эфирные команды тоже обслуживает main (не рендерер)
+  if (relayActive()) {
+    if (cmd === 'off') { relayStop(); resolve('⏹ Эфир остановлен.'); return; }
+    if (cmd === 'on') {
+      const f = parseFloat(String(args).replace(',', '.'));
+      if (Number.isFinite(f)) { prefs.relay.freq = f; savePrefs(); if (relayStation) relayStation.setFreq(f); }
+      resolve(`✅ В эфире ${prefs.relay.freq.toFixed(2)} МГц — ${prefs.relay.name}.`);
+      return;
+    }
+    if (cmd === 'status') {
+      const conn = relayState === 'reconnect' ? 'переподключаюсь к потоку' : 'поток идёт';
+      resolve(`🔴 В эфире ${prefs.relay.freq.toFixed(2)} МГц · «${prefs.relay.name}»\nСлушателей: ${relayStation ? relayStation.listeners : 0} · источник: интернет-радио (сервер) · ${conn}.`);
+      return;
+    }
+    if (cmd === 'next') { resolve('На сервере играет интернет-радио — треки листать нечего.'); return; }
+  }
+  // «Выйти в эфир» на сервере без микрофона = включить сохранённое интернет-радио
+  if (cmd === 'on' && !relayActive() && localServer()) {
+    const f = parseFloat(String(args).replace(',', '.'));
+    if (Number.isFinite(f)) { prefs.relay.freq = f; savePrefs(); }
+    if (!prefs.relay.url) { resolve('Сначала дай ссылку интернет-радио в карточке «Интернет-радио» (или /radio <url>).'); return; }
+    const r = relayStart(prefs.relay.url);
+    resolve(r.ok ? `✅ В эфире ${prefs.relay.freq.toFixed(2)} МГц — ${prefs.relay.name} (интернет-радио).` : '⚠️ ' + r.error);
+    return;
+  }
+
   if (!win || win.isDestroyed()) { resolve('Станция сейчас закрыта.'); return; }
   const id = ++botReqId;
   botPending.set(id, resolve);
   win.webContents.send('bot:command', { id, cmd, args });
   setTimeout(() => {
-    if (botPending.has(id)) { botPending.delete(id); resolve('Станция не ответила — окно эфира закрыто?'); }
-  }, 8000);
+    if (botPending.has(id)) { botPending.delete(id); resolve('Станция не ответила вовремя — окно эфира занято.'); }
+  }, 5000);
  });
 }
 
