@@ -135,7 +135,10 @@ def package_json():
             'files': build['files'],
             'extraResources': [{'from': 'web', 'to': 'web'}],
             'win': {**build['win'], 'icon': 'build/icon.ico'},
-            'nsis': {**build['nsis'], 'artifactName': 'Walkie-Setup-${version}.exe', 'shortcutName': TITLE},
+            # include (installer.nsh) — только у станции; в staged-сборке рации этого файла нет,
+            # поэтому не тащим его в nsis рации, иначе electron-builder падает «cannot find resource».
+            'nsis': {**{k: v for k, v in build['nsis'].items() if k != 'include'},
+                     'artifactName': 'Walkie-Setup-${version}.exe', 'shortcutName': TITLE},
             'npmRebuild': build['npmRebuild'],
         },
         'dependencies': src['dependencies'],
