@@ -2,7 +2,7 @@
 Собирает отдельную программу «Рация» из общих исходников «Радио».
 
     python pack_walkie.py          исходники рации в release/radio-walkie и архив для друзей
-    python pack_walkie.py --build  то же и установщик release/Walkie-Setup-<версия>.exe
+    python pack_walkie.py --build  то же и установщик release/Walkie-Setup-<версия>-walkie.0.exe
 
 В архив попадают только файлы из списка ниже — ничего лишнего из папки проекта. Перед упаковкой
 всё проверяется на секреты (ключи, токены, пароли) и личные данные (почта, адреса в домашней сети,
@@ -244,7 +244,8 @@ def build(version):
         subprocess.run([npm, 'ci', '--offline', '--no-audit', '--no-fund'], cwd=OUT, env=env, check=True)
     print('Собираю установщик…')
     subprocess.run([npx, 'electron-builder', '--win'], cwd=OUT, env=env, check=True)
-    exe = OUT / 'dist' / f'Walkie-Setup-{version}.exe'
+    # electron-builder называет файл по версии из package.json рации — с суффиксом «-walkie.0»
+    exe = OUT / 'dist' / f'Walkie-Setup-{walkie_version(version)}.exe'
     shutil.copyfile(exe, RELEASE / exe.name)
     return RELEASE / exe.name
 
