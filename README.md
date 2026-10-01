@@ -4,14 +4,16 @@
 400–470 МГц, FM-радио, VOX, ROGER, двойное прослушивание, шифрование, компактная полоска поверх игр
 на ПК и кнопка PTT поверх приложений на телефоне.
 
-Связь идёт через **сервер эфира**. Его открывает сама ПК-рация (пункт меню **14 HOST**), к нему
-подключаются другие рации — на ПК и на телефоне. Все говорят на одном протоколе и слышат друг друга.
+Связь идёт через **сервер эфира**. Его открывает сама ПК-программа (пункт меню **14 HOST**) или
+`server.py` на VPS, к нему подключаются другие рации — на ПК и на телефоне. Все говорят на одном
+протоколе и слышат друг друга.
 
 | | Где взять | Что умеет |
 |---|---|---|
-| **ПК (Windows)** | `radio-walkie/` → `npm run dist` или готовый установщик | Рация, свой сервер эфира, полоска поверх игр, горячие клавиши |
-| **Android** | [Релизы](https://github.com/BuninSil/Walkie-Walkie/releases) → `Walkie-1.0.N.apk` | Та же рация, кнопка PTT поверх приложений, фоновый приём |
-| **Радиостанция (Android)** | [Релизы](https://github.com/BuninSil/Walkie-Walkie/releases) → `Station-1.0.N.apk` | Своя FM-станция: музыка из папки и голос в эфир на 87.5–108 МГц — [подробно](radio-air/README.md) |
+| **«Радио» (ПК, Windows)** | [Релизы](https://github.com/WalkieWalkie/Walkie_Walkie/releases) → `Radio-Setup-0.X.Y.exe` (релиз `v0.X.Y`) | Станция и рация в одной программе: свой эфир (микрофон, плейлист, интернет-радио), приёмник, свой сервер эфира, рация-виджет и полоска поверх игр |
+| **«Рация» (ПК, Windows)** | [Релизы](https://github.com/WalkieWalkie/Walkie_Walkie/releases) → `Walkie-Setup-0.X.Y-walkie.0.exe` (pre-release `v0.X.Y-walkie.0`) | Только рация-виджет: свой сервер эфира, полоска поверх игр, горячие клавиши |
+| **Android** | [Релизы](https://github.com/WalkieWalkie/Walkie_Walkie/releases) → `Walkie-1.0.N.apk` | Та же рация, кнопка PTT поверх приложений, фоновый приём |
+| **Радиостанция (Android)** | [Релизы](https://github.com/WalkieWalkie/Walkie_Walkie/releases) → `Station-1.0.N.apk` | Своя FM-станция: музыка из папки и голос в эфир на 87.5–108 МГц — [подробно](radio-air/README.md) |
 
 **Авторы:** [BuninSil](https://github.com/BuninSil) и Valex.
 
@@ -36,9 +38,10 @@
 
 ## Быстрый старт
 
-1. **На ПК** запустите рацию, включите её щелчком по ручке сверху и откройте свой сервер:
+1. **На ПК** запустите «Рацию» (или «Радио» → кнопка **РАЦИЯ**), включите её щелчком по ручке
+   сверху и откройте свой сервер:
    **MENU → 14 HOST → ON**. Рация покажет адрес для друзей.
-2. **На телефоне** установите APK из [релизов](https://github.com/BuninSil/Walkie-Walkie/releases),
+2. **На телефоне** установите APK из [релизов](https://github.com/WalkieWalkie/Walkie_Walkie/releases),
    включите рацию и введите адрес сервера: **MENU → 1 → 2 → MENU → MENU**, в окне «Адрес сервера» —
    например `192.168.1.10:8765`, **Готово**.
 3. На экране загорится **NET** — связь есть. Выберите тот же канал, что у собеседников (по умолчанию
@@ -50,7 +53,7 @@
 
 ## Установка на Android
 
-1. Скачайте `Walkie-1.0.N.apk` со страницы [релизов](https://github.com/BuninSil/Walkie-Walkie/releases).
+1. Скачайте `Walkie-1.0.N.apk` со страницы [релизов](https://github.com/WalkieWalkie/Walkie_Walkie/releases).
 2. Откройте файл. Android попросит разрешить установку из этого источника (браузера или файлового
    менеджера) — разрешите.
 3. Play Protect может предложить проверить приложение, которого нет в Google Play, — нажмите
@@ -69,19 +72,55 @@
 
 ## Установка на ПК
 
-**Готовый установщик** `Walkie-Setup-0.1.0.exe` ставится в профиль пользователя без прав
-администратора. Он не подписан, поэтому Windows может показать «Windows защитил ваш компьютер» —
-нажмите «Подробнее» → «Выполнить в любом случае». Установщик собирает workflow «Windows installer»
-(артефакт `walkie-windows-setup`).
+Для Windows две программы. Обе собираются из `radio-air-PC/` и обновляются сами, каждая своим
+каналом:
+
+| Программа | Что скачать в [релизах](https://github.com/WalkieWalkie/Walkie_Walkie/releases) | Что это |
+|---|---|---|
+| **«Радио»** | `Radio-Setup-0.X.Y.exe` из релиза `v0.X.Y` (обычный, «Latest») | Станция и рация: большое окно с вкладками «Эфир», «Сервер», «Приём» и рация-виджет (кнопка **РАЦИЯ**) |
+| **«Рация»** | `Walkie-Setup-0.X.Y-walkie.0.exe` из релиза `v0.X.Y-walkie.0` (помечен «Pre-release») | Только рация-виджет — та же программа в режиме «только рация», со своим значком |
+
+Можно поставить обе: настройки у них свои, работать они могут вместе — только не назначайте обеим
+одну клавишу рации, сработают обе.
+
+Установщик ставится в профиль пользователя без прав администратора. Он не подписан, поэтому Windows
+может показать «Windows защитил ваш компьютер» — нажмите «Подробнее» → «Выполнить в любом случае».
+
+**Обновления.** Программы проверяют релизы при запуске и раз в час (electron-updater: «Радио» —
+по `latest.yml`, «Рация» — по `walkie.yml`), сами скачивают новую версию и ставят её при выходе
+или по кнопке; «Радио» — не во время эфира. Вручную — ⚙ → «Обновления» → «Проверить». Как
+выпускать — в [RELEASING.md](RELEASING.md), шаг 3Б.
 
 **Из исходников** (нужен [Node.js](https://nodejs.org) 20 или новее):
 
 ```bash
-cd radio-walkie
+cd radio-air-PC/desktop
 npm install
-npm start          # запустить рацию
-npm run dist       # собрать установщик в radio-walkie/dist
+npm start                    # запустить «Радио»
+npm start -- --walkie-only   # то же в режиме «только рация»
+npm run dist                 # собрать установщик «Радио» в radio-air-PC/desktop/dist
 ```
+
+Отдельную «Рацию» собирает `pack_walkie.py` — так же, как workflow «PC apps (Радио + Рация)»:
+
+```bash
+cd radio-air-PC
+python pack_walkie.py        # исходники рации в release/radio-walkie и архив для друзей
+cd release/radio-walkie
+npm install
+npm run dist                 # установщик Walkie-Setup-0.X.Y-walkie.0.exe в dist/
+```
+
+Интернет-радио в эфир «Радио» гонит через ffmpeg: в установщик его вшивает CI, а при запуске из
+исходников берётся ffmpeg из `PATH` или путь из настроек.
+
+**Сервер эфира на VPS.** Для круглосуточного эфира без открытой программы — `radio-air-PC/server.py`
+(нужен только Python 3) и `autostart.py`: автозапуск, служба Windows, HTTPS через Caddy. Архив для
+VPS собирает `python pack_server.py`. Подробно — [radio-air-PC/server-README.md](radio-air-PC/server-README.md)
+и [radio-air-PC/README.md](radio-air-PC/README.md).
+
+Старая ПК-рация из `radio-walkie/` (`Walkie-Setup-0.1.0.exe`) не обновляется — её заменила «Рация»
+из `radio-air-PC/`.
 
 ---
 
@@ -147,7 +186,7 @@ MON, замок, **NET** (связь с сервером).
 Кнопка ▭ над рацией сворачивает её в полоску поверх всех окон (обратно — ⤢). Горячие клавиши
 работают в любом окне, в том числе в играх: по умолчанию рация — **F8**, спрятать/показать —
 **Ctrl+Shift+F8**. Настройки полоски — ⚙: клавиши, режим «держу — говорю» / «нажал — нажал»,
-прозрачность, «мышь насквозь». Подробно — в [radio-walkie/README.md](radio-walkie/README.md).
+прозрачность, «мышь насквозь». Подробно — в [radio-air-PC/README.md](radio-air-PC/README.md#полоска-поверх-игр-и-видео).
 
 ---
 
@@ -266,28 +305,42 @@ Android держит телефон в режиме звонка и не пер�
 ## Устройство проекта
 
 ```
-radio-walkie/            Рация для ПК (Electron) — исходный код рации
-  web/                   Сама рация: страница, стили, звук, связь, шифрование
-  main.js, preload.js    Оболочка Windows: окна, полоска, свой сервер, горячие клавиши
-  air-server.js          Сервер эфира (ретрансляция, ничего не записывает)
-  upnp.js, hotkeys.js    Проброс порта в роутере, клавиши из любого окна
+radio-air-PC/            ПК-программы «Радио» и «Рация» (Windows) и сервер эфира для VPS
+  index.html, widget.html   Большое окно «Радио» и рация-виджет
+  js/, css/, fonts/      Приёмник, эфир, рация, шифрование (crypto.js), сжатие звука (codec.js)
+  desktop/               Оболочка Electron: окна, полоска, свой сервер, горячие клавиши,
+                         ретрансляция интернет-радио, телеграм-бот и веб-панель, автообновление
+  pack_walkie.py         Сборка отдельной «Рации» — тот же main.js в режиме «только рация»
+  server.py, autostart.py   Сервер эфира на Python: автозапуск, служба Windows, HTTPS
+  pack_server.py         Архив сервера для VPS (с инструкцией server-README.md)
+radio-walkie/
+  web/                   Общий код рации: страница, стили, звук, связь, шифрование — его
+                         копирует в APK Android-рация
+  main.js, preload.js…   Старая ПК-рация 0.1.0 — заменена radio-air-PC/, не обновляется
 radio-air/               Радиостанция для Android: музыка из папки в FM-эфир
 android/                 Рация для Android
   app/src/main/java/…    MainActivity, AirSocket, WalkieService, PttBubble, AirState
   app/src/main/assets/android/   bridge.js, android.css — адаптер рации под телефон
   tools/sign_v2.py       Подпись APK (APK Signature Scheme v2) вне CI
-.github/workflows/       Сборка APK, установщика Windows и релизов
+.github/workflows/       Сборка APK, установщиков Windows и релизов
 ```
 
 **Как устроена Android-версия.** APK содержит `radio-walkie/web` без изменений — Gradle копирует
-папку при каждой сборке. На ПК страницу рации открывает Electron и даёт ей `window.radioDesktop`
-(`preload.js`); на Android то же делает `bridge.js`, поэтому рация работает как ПК-программа: то же
-меню, та же логика подключения. Соединение с сервером открывает Java (`AirSocket`, OkHttp) с тем же
+папку при каждой сборке (задача `copyWalkieWeb` в `android/app/build.gradle`). На ПК страницу рации
+открывает Electron и даёт ей `window.radioDesktop` (`radio-air-PC/desktop/preload.js`); на Android
+то же делает `bridge.js`, поэтому рация работает как ПК-программа: то же меню, та же логика
+подключения. Соединение с сервером открывает Java (`AirSocket`, OkHttp) с тем же
 `Origin: app://radio`, что у ПК-рации, — для сервера телефон неотличим от ПК.
+
+У ПК-программ своя копия кода рации — `radio-air-PC/js/`. Протокол и формат пакетов у неё тот же,
+что в `radio-walkie/web/js/`: правку протокола вносите в обе копии, иначе ПК и телефоны перестанут
+слышать друг друга.
 
 **Протокол.** WebSocket `/ws`. Текстовые сообщения — JSON (`tune`, `onair`, `offair`, `welcome`,
 `station-on`, `station-off`, `listeners`), двоичные — звук: 4 байта номера станции + пакет.
-Звук: PCM 16 бит, 16 кГц, моно, пакеты по 40 мс — около 256 кбит/с на станцию.
+Звук: 16 кГц, моно, пакеты по 40 мс. Рации и ПК-программы сжимают его в IMA ADPCM (4 бита на сэмпл,
+пакеты типов 4 и 5 — открытый и шифрованный) — около 64 кбит/с на станцию. Радиостанция для Android
+пока шлёт несжатый PCM 16 бит (типы 0 и 1) — около 256 кбит/с; приёмники понимают оба формата.
 
 ---
 
@@ -295,11 +348,12 @@ android/                 Рация для Android
 
 | Что | Как |
 |---|---|
-| ПК | `cd radio-walkie && npm install && npm run dist` |
+| ПК «Радио» | `cd radio-air-PC/desktop && npm install && npm run dist` |
+| ПК «Рация» | `cd radio-air-PC && python pack_walkie.py`, затем `npm install && npm run dist` в `release/radio-walkie` |
 | Android (рация) | `cd android && ./gradlew assembleRelease` (JDK 17+, Android SDK или Android Studio) |
 | Android (станция) | `cd radio-air && ./gradlew assembleRelease` |
-| CI | Workflow «Android APK», «Station APK» и «Windows installer» при каждом пуше |
-| Релиз | Actions → «Выпустить релиз» — см. [RELEASING.md](RELEASING.md) |
+| CI | Workflow «Android APK» и «Station APK» при каждом пуше; ПК — «PC apps (Радио + Рация)» вручную или по тегу `v*` |
+| Релиз | Android — Actions → «Выпустить релиз», ПК — «PC apps (Радио + Рация)» с галочкой публикации; см. [RELEASING.md](RELEASING.md) |
 
 Android подробнее — в [android/README.md](android/README.md).
 
@@ -309,7 +363,7 @@ Android подробнее — в [android/README.md](android/README.md).
 
 **Как выпустить обновление самому** (кнопка «Выпустить релиз» в Actions, секреты, правила версий) — в [RELEASING.md](RELEASING.md).
 
-**Автообновление.** Рация и радиостанция сами проверяют [релизы](https://github.com/BuninSil/Walkie-Walkie/releases)
+**Автообновление.** Рация и радиостанция сами проверяют [релизы](https://github.com/WalkieWalkie/Walkie_Walkie/releases)
 (при каждом входе в приложение и раз в 6 часов в фоне), скачивают новую версию, проверяют, что это то же приложение с тем же
 ключом подписи, и ставят её — рация не во время передачи, станция не во время эфира. Первый раз Android
 попросит разрешить установку обновлений и подтвердить; дальше на Android 12+ обновления ставятся сами.
