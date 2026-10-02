@@ -134,11 +134,13 @@ def package_json():
             'directories': build['directories'],
             'files': build['files'],
             'extraResources': [{'from': 'web', 'to': 'web'}],
-            'win': {**build['win'], 'icon': 'build/icon.ico'},
-            # include (installer.nsh) — только у станции; в staged-сборке рации этого файла нет,
-            # поэтому не тащим его в nsis рации, иначе electron-builder падает «cannot find resource».
-            'nsis': {**{k: v for k, v in build['nsis'].items() if k != 'include'},
-                     'artifactName': 'Walkie-Setup-${version}.exe', 'shortcutName': TITLE},
+            # Рации portable-zip не нужен (её ставят обычным установщиком) — оставляем только
+            # nsis и НЕ наследуем portable-artifactName станции, иначе имена zip столкнутся.
+            'win': {**build['win'], 'icon': 'build/icon.ico', 'target': ['nsis'], 'artifactName': 'Walkie-${version}.${ext}'},
+            # nsis.include станции (build/installer.nsh) в дерево рации не кладём — иначе
+            # electron-builder упадёт «cannot find build/installer.nsh». У рации свой exe,
+            # хук закрытия ей не нужен; ключ include отбрасываем.
+            'nsis': {**{k: v for k, v in build['nsis'].items() if k != 'include'}, 'artifactName': 'Walkie-Setup-${version}.exe', 'shortcutName': TITLE},
             'npmRebuild': build['npmRebuild'],
         },
         'dependencies': src['dependencies'],

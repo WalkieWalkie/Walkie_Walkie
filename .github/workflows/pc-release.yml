@@ -102,6 +102,7 @@ jobs:
         run: |
           mkdir -p out-station out-walkie
           cp radio-air-PC/desktop/dist/*.exe radio-air-PC/desktop/dist/*.exe.blockmap radio-air-PC/desktop/dist/latest.yml out-station/ 2>/dev/null || true
+          cp radio-air-PC/desktop/dist/*.zip out-station/ 2>/dev/null || true
           cp radio-air-PC/release/radio-walkie/dist/*.exe radio-air-PC/release/radio-walkie/dist/*.exe.blockmap radio-air-PC/release/radio-walkie/dist/walkie.yml out-walkie/ 2>/dev/null || true
           echo "── станция ──"; ls -la out-station; echo "── рация ──"; ls -la out-walkie
 
@@ -142,5 +143,6 @@ jobs:
           name: pc-installers
           path: |
             out-station/*.exe
+            out-station/*.zip
             out-walkie/*.exe
           if-no-files-found: warn
