@@ -46,6 +46,7 @@ class LiveStation extends Station {
   // прозрачно падаем на старый путь (this.play/reserve), чтобы звук не пропал.
   build(ctx) {
     if (this.player) { try { this.player.disconnect(); } catch { /* уже */ } }
+    if (this._opusRx) { try { this._opusRx.close(); } catch { /* уже */ } this._opusRx = null; }
     const out = super.build(ctx);
     this.player = null;
     this._pQueue = [];
@@ -94,6 +95,15 @@ class LiveStation extends Station {
     const type = packet[0];
     const seq = packet[1];
 
+    // Открытый звук Opus (WebCodecs): декодер асинхронный, кадр прилетит в колбэк
+    if (type === PACKET_OPEN_O) {
+      this.encrypted = false;
+      this.conceal(seq);
+      const rx = this._opus();
+      if (rx) rx.decode(packet.subarray(2));
+      return;
+    }
+
     // Открытый звук: несжатый (со станции) или сжатый ADPCM (с раций)
     if (type === PACKET_OPEN || type === PACKET_OPEN_C) {
       this.encrypted = false;
@@ -113,12 +123,15 @@ class LiveStation extends Station {
 
     const sealed = type === PACKET_SEALED;
     const sealedC = type === PACKET_SEALED_C;
-    if ((!sealed && !sealedC) || packet.length <= SEALED_HEAD + 16) return;
+    const sealedO = type === PACKET_SEALED_O;
+    if ((!sealed && !sealedC && !sealedO) || packet.length <= SEALED_HEAD + 16) return;
 
     this.encrypted = true;
     const cipher = packet.subarray(SEALED_HEAD);
     const plainLen = cipher.length - 16;
-    const samples = sealed ? plainLen >> 1 : adpcmSamples(plainLen);
+    // Для шумового превью (ключ не подошёл) нужна примерная длина кадра: у Opus она неизвестна
+    // из длины шифротекста — берём типовой кадр (40 мс).
+    const samples = sealed ? plainLen >> 1 : sealedC ? adpcmSamples(plainLen) : LIVE_CHUNK;
     this.conceal(seq);
     const entry = keyring.find(packet.subarray(2, 10));
     if (!entry) {
@@ -129,6 +142,11 @@ class LiveStation extends Station {
     unsealPacket(entry, packet).then(
       (buf) => {
         this.decrypted = true;
+        if (sealedO) {
+          const rx = this._opus();
+          if (rx) rx.decode(new Uint8Array(buf));
+          return;
+        }
         const frame = sealed ? pcmToFloat(new Int16Array(buf)) : adpcmDecode(new Uint8Array(buf), adpcmSamples(buf.byteLength));
         this.lastFrame = frame;
         this.emit(frame);
@@ -138,6 +156,18 @@ class LiveStation extends Station {
         this.emit(this.sonify(cipher, samples));
       },
     );
+  }
+
+  // Ленивый Opus-декодер этой станции (один на станцию). Кадры из него идут в общий emit().
+  _opus() {
+    if (!this._opusRx && window.OpusVoice && OpusVoice.supported) {
+      try {
+        const rx = new OpusVoice.Rx((frame) => { this.lastFrame = frame; this.emit(frame); });
+        rx.start();
+        this._opusRx = rx;
+      } catch { this._opusRx = null; }
+    }
+    return this._opusRx;
   }
 
   // Пропущены пакеты (по номеру seq) — заполняем дыру затухающим повтором последнего кадра,

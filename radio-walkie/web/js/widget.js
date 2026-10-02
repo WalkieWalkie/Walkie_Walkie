@@ -407,8 +407,41 @@
   // С ключом звук шифруется до отправки; пока ключ считается — пакет пропадает, но открыто не уходит
   // Звук сжимается (ADPCM, в 4 раза меньше) — чтобы держать связь на слабой сети.
   // seq растёт с каждым пакетом: приёмник по нему латает потерянные.
+  // Кодек эфира: Opus (WebCodecs) — чистый голос ~16 кбит/с, заметно лучше ADPCM и легче для 2G.
+  // Где WebCodecs нет — откат на ADPCM. seq в любом случае для восстановления потерь.
   let txSeq = 0;
+  let opusTx = null;
+
+  function sendAudioOpus(bytes) {
+    const seq = txSeq;
+    txSeq = (txSeq + 1) & 0xff;
+    if (!cfg.scr) {
+      link.sendAudio(openPacketO(bytes, seq));
+      return;
+    }
+    const entry = txKey;
+    if (!entry) return;
+    sealing = sealing
+      .then(() => sealPacketO(entry, bytes, seq))
+      .then((packet) => link.sendAudio(packet))
+      .catch(() => {});
+  }
+
+  function ensureOpusTx() {
+    if (opusTx || !(window.OpusVoice && OpusVoice.supported)) return opusTx;
+    try {
+      const tx = new OpusVoice.Tx((bytes) => sendAudioOpus(bytes));
+      tx.start();
+      opusTx = tx;
+    } catch {
+      opusTx = null;
+    }
+    return opusTx;
+  }
+
   function transmit(pcm) {
+    const tx = ensureOpusTx();
+    if (tx) { tx.push(new Int16Array(pcm)); return; } // пакет уйдёт асинхронно через sendAudioOpus
     const seq = txSeq;
     txSeq = (txSeq + 1) & 0xff;
     const adpcm = adpcmEncode(new Int16Array(pcm));
