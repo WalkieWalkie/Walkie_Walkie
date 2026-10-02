@@ -1,0 +1,27 @@
+name: Удалить релизы (одноразовый)
+
+# Ручной одноразовый воркфлоу: удаляет указанные релизы вместе с их тегами.
+# Запуск: Actions → этот воркфлоу → введите теги через пробел.
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: Теги релизов для удаления (через пробел)
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Delete releases
+        run: |
+          for t in ${{ inputs.tags }}; do
+            echo "Удаляю релиз и тег $t"
+            gh release delete "$t" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || echo "  (релиз $t не найден или уже удалён)"
+          done
