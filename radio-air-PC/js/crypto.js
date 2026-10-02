@@ -17,6 +17,8 @@ const PACKET_OPEN = 0;
 const PACKET_SEALED = 1;
 const PACKET_OPEN_C = 4;   // сжатый (ADPCM) открытый звук — в 4 раза меньше данных
 const PACKET_SEALED_C = 5; // сжатый шифрованный звук
+const PACKET_OPEN_O = 6;   // открытый звук Opus (WebCodecs) — чистый голос на ~16 кбит/с
+const PACKET_SEALED_O = 7; // шифрованный звук Opus
 const SEALED_HEAD = 22;
 const AIR_SALT = new TextEncoder().encode('radio-air/v1');
 const AIR_ITERATIONS = 200000;
@@ -52,6 +54,34 @@ function openPacketC(adpcm, seq = 0) {
   out[0] = PACKET_OPEN_C;
   out[1] = seq & 0xff;
   out.set(adpcm, 2);
+  return out.buffer;
+}
+
+// Открытый звук Opus: [6][seq][opus]
+function openPacketO(opus, seq = 0) {
+  const out = new Uint8Array(2 + opus.length);
+  out[0] = PACKET_OPEN_O;
+  out[1] = seq & 0xff;
+  out.set(opus, 2);
+  return out.buffer;
+}
+
+// Шифрованный звук Opus: [7][seq][kid8][iv12][AES-GCM(opus)]
+async function sealPacketO(entry, opus, seq = 0) {
+  const head = new Uint8Array(SEALED_HEAD);
+  head[0] = PACKET_SEALED_O;
+  head[1] = seq & 0xff;
+  head.set(entry.id, 2);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  head.set(iv, 10);
+  const sealed = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv, additionalData: head.subarray(0, 10) },
+    entry.key,
+    opus,
+  );
+  const out = new Uint8Array(SEALED_HEAD + sealed.byteLength);
+  out.set(head);
+  out.set(new Uint8Array(sealed), SEALED_HEAD);
   return out.buffer;
 }
 

@@ -7,8 +7,12 @@
 const LIVE_RATE = 16000;   // частота дискретизации живого эфира, Гц
 const LIVE_CHUNK = 640;    // сэмплов в одном пакете — 40 мс
 const LIVE_JITTER = 0.22;      // запас на неровную доставку, с — минимум (на хорошей сети)
-const LIVE_JITTER_MAX = 1.0;   // на плохой сети буфер сам растёт до этого, чтобы пережить рывки
-const LIVE_MAX_LAG = 0.7;      // задержка выросла больше буфера — пересинхронизация, чтобы не копилась
+const LIVE_JITTER_MAX = 2.0;   // на плохой сети (2G/«одна палка») буфер сам растёт до этого, чтобы пережить рывки
+const LIVE_MAX_LAG = 1.2;      // задержка выросла больше буфера — пересинхронизация, чтобы не копилась
+// DTX: передатчик молчит в паузах. Тишину в эфир не гоним — на слабой сети это и лишний трафик,
+// и лишние пакеты, которые всё равно теряются. «Хвост» держим ~0.5 с после последнего звука,
+// чтобы не рвать на коротких паузах между словами; chunk = 40 мс → 13 кадров ≈ 0.52 с.
+const TX_HANGOVER = 13;
 
 // Без ключа шифротекст звучит как цифровая рация: байты модулируются четырьмя тонами (4FSK)
 const FSK4_TONES = [900, 1500, 2100, 2700];
@@ -42,6 +46,7 @@ class LiveStation extends Station {
   // прозрачно падаем на старый путь (this.play/reserve), чтобы звук не пропал.
   build(ctx) {
     if (this.player) { try { this.player.disconnect(); } catch { /* уже */ } }
+    if (this._opusRx) { try { this._opusRx.close(); } catch { /* уже */ } this._opusRx = null; }
     const out = super.build(ctx);
     this.player = null;
     this._pQueue = [];
@@ -90,6 +95,15 @@ class LiveStation extends Station {
     const type = packet[0];
     const seq = packet[1];
 
+    // Открытый звук Opus (WebCodecs): декодер асинхронный, кадр прилетит в колбэк
+    if (type === PACKET_OPEN_O) {
+      this.encrypted = false;
+      this.conceal(seq);
+      const rx = this._opus();
+      if (rx) rx.decode(packet.subarray(2));
+      return;
+    }
+
     // Открытый звук: несжатый (со станции) или сжатый ADPCM (с раций)
     if (type === PACKET_OPEN || type === PACKET_OPEN_C) {
       this.encrypted = false;
@@ -109,12 +123,15 @@ class LiveStation extends Station {
 
     const sealed = type === PACKET_SEALED;
     const sealedC = type === PACKET_SEALED_C;
-    if ((!sealed && !sealedC) || packet.length <= SEALED_HEAD + 16) return;
+    const sealedO = type === PACKET_SEALED_O;
+    if ((!sealed && !sealedC && !sealedO) || packet.length <= SEALED_HEAD + 16) return;
 
     this.encrypted = true;
     const cipher = packet.subarray(SEALED_HEAD);
     const plainLen = cipher.length - 16;
-    const samples = sealed ? plainLen >> 1 : adpcmSamples(plainLen);
+    // Для шумового превью (ключ не подошёл) нужна примерная длина кадра: у Opus она неизвестна
+    // из длины шифротекста — берём типовой кадр (40 мс).
+    const samples = sealed ? plainLen >> 1 : sealedC ? adpcmSamples(plainLen) : LIVE_CHUNK;
     this.conceal(seq);
     const entry = keyring.find(packet.subarray(2, 10));
     if (!entry) {
@@ -125,6 +142,11 @@ class LiveStation extends Station {
     unsealPacket(entry, packet).then(
       (buf) => {
         this.decrypted = true;
+        if (sealedO) {
+          const rx = this._opus();
+          if (rx) rx.decode(new Uint8Array(buf));
+          return;
+        }
         const frame = sealed ? pcmToFloat(new Int16Array(buf)) : adpcmDecode(new Uint8Array(buf), adpcmSamples(buf.byteLength));
         this.lastFrame = frame;
         this.emit(frame);
@@ -134,6 +156,18 @@ class LiveStation extends Station {
         this.emit(this.sonify(cipher, samples));
       },
     );
+  }
+
+  // Ленивый Opus-декодер этой станции (один на станцию). Кадры из него идут в общий emit().
+  _opus() {
+    if (!this._opusRx && window.OpusVoice && OpusVoice.supported) {
+      try {
+        const rx = new OpusVoice.Rx((frame) => { this.lastFrame = frame; this.emit(frame); });
+        rx.start();
+        this._opusRx = rx;
+      } catch { this._opusRx = null; }
+    }
+    return this._opusRx;
   }
 
   // Пропущены пакеты (по номеру seq) — заполняем дыру затухающим повтором последнего кадра,
@@ -258,6 +292,9 @@ class Broadcaster {
     this.onTrackError = null; // файл не удалось воспроизвести
     this.level = 0;
     this.transmitting = false;
+    this.dtx = true;          // не слать тишину в эфир (экономия трафика + меньше потерь на 2G)
+    this.txGate = 0.012;      // порог «есть звук» по пиковому уровню кадра
+    this._txHang = 0;         // сколько кадров ещё дослать после последнего звука (хвост)
   }
 
   // Микрофон и AudioWorklet браузер даёт только на localhost или по HTTPS
@@ -281,7 +318,11 @@ class Broadcaster {
     node.port.onmessage = (e) => {
       const { pcm, peak } = e.data;
       this.level = Math.max(peak, this.level * 0.8);
-      if (this.transmitting) this.onChunk(pcm);
+      if (!this.transmitting) return;
+      // Когда играет трек/интернет-радио — поток непрерывный, DTX не применяем (не режем музыку).
+      const mediaOn = Boolean(this.player && this.player.getAttribute('src') && !this.player.paused);
+      if (!this.dtx || mediaOn || peak >= this.txGate) this._txHang = TX_HANGOVER;
+      if (this._txHang > 0) { this._txHang--; this.onChunk(pcm); }
     };
     // Эфирная обработка, как на настоящих станциях: тихое подтягивается, громкое прижимается,
     // поэтому голос и музыка звучат одинаково громко (компрессор сам добавляет усиление)

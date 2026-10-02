@@ -19,8 +19,8 @@ class LivePlayer extends AudioWorkletProcessor {
     this.wr = 0;                 // индекс записи (целый)
     this.rd = 0;                 // индекс чтения (дробный) — для интерполяции
     this.avail = 0;              // сколько входных сэмплов ещё не прочитано
-    this.minPre = Math.max(this.rate * 0.12, this.rate * (o.jitter || 0.22));
-    this.maxPre = this.rate * 1.2;
+    this.minPre = Math.max(this.rate * 0.15, this.rate * (o.jitter || 0.22));
+    this.maxPre = this.rate * 2.5;   // на 2G/рывках буфер уходит глубоко, лишь бы не рвалось (на хорошей сети сам ужмётся)
     this.pre = this.minPre;      // порог набора буфера перед стартом
     this.playing = false;        // набрали ли буфер — идёт ли воспроизведение
     this.env = 0;                // огибающая для мягких фейдов (0..1)
@@ -88,12 +88,13 @@ class LivePlayer extends AudioWorkletProcessor {
 
     if (under) {
       // Был провал — на следующий раз набираем больше запаса (адаптивно, до maxPre)
-      this.pre = Math.min(this.maxPre, this.pre * 1.5 + this.rate * 0.06);
+      this.pre = Math.min(this.maxPre, this.pre * 1.6 + this.rate * 0.09);
       this.good = 0;
-    } else if (++this.good > 400) {
-      // Долго стабильно — очень медленно ужимаем буфер обратно к минимуму (меньше задержка)
+    } else if (++this.good > 900) {
+      // Долго стабильно — ОЧЕНЬ медленно ужимаем буфер обратно к минимуму (меньше задержка).
+      // На 2G ужимаем неспеша, чтобы не ронять запас раньше следующего рывка.
       this.good = 0;
-      this.pre = Math.max(this.minPre, this.pre * 0.9);
+      this.pre = Math.max(this.minPre, this.pre * 0.92);
     }
     return true;
   }
