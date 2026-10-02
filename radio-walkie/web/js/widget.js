@@ -411,6 +411,8 @@
   // Где WebCodecs нет — откат на ADPCM. seq в любом случае для восстановления потерь.
   let txSeq = 0;
   let opusTx = null;
+  // Временно выключено: Opus в поле дал низкий тон/эхо — откат на ADPCM, доделываю Opus отдельно.
+  const OPUS_ENABLED = false;
 
   function sendAudioOpus(bytes) {
     const seq = txSeq;
@@ -428,7 +430,7 @@
   }
 
   function ensureOpusTx() {
-    if (opusTx || !(window.OpusVoice && OpusVoice.supported)) return opusTx;
+    if (!OPUS_ENABLED || opusTx || !(window.OpusVoice && OpusVoice.supported)) return opusTx;
     try {
       const tx = new OpusVoice.Tx((bytes) => sendAudioOpus(bytes));
       tx.start();

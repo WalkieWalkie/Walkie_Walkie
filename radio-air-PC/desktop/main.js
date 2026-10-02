@@ -20,9 +20,6 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { AirServer } = require('./air-server');
 const { PortMapper, lanAddresses, isPublicIp, publicAddresses } = require('./upnp');
-const { TelegramBot } = require('./telegram');
-const { ControlServer } = require('./control');
-const { StreamRelay, ffmpegPath } = require('./relay'); // ffmpegPath(configured) → рабочая команда ffmpeg или null
 const { Hotkeys, ACTIONS, DEFAULTS, label } = require('./hotkeys');
 
 const pkg = require('./package.json');
@@ -30,6 +27,13 @@ const pkg = require('./package.json');
 // Только рация, без большого приёмника
 const WALKIE_ONLY = pkg.walkieOnly === true || process.argv.includes('--walkie-only');
 const APP_TITLE = WALKIE_ONLY ? 'Рация' : 'Радио';
+
+// Модули только станции «Радио»: телеграм-бот, веб-панель, серверная ретрансляция (ffmpeg).
+// Рация (walkieOnly) их не содержит и не использует — грузим лениво, иначе её сборка падает
+// на require отсутствующего файла (./telegram и т.п.).
+const { TelegramBot } = WALKIE_ONLY ? {} : require('./telegram');
+const { ControlServer } = WALKIE_ONLY ? {} : require('./control');
+const { StreamRelay, ffmpegPath } = WALKIE_ONLY ? {} : require('./relay'); // ffmpegPath(configured) → рабочая команда ffmpeg или null
 
 // Страницы: в установленном приложении — рядом с ним, при разработке — из папки Radio
 // (или из той, что указана в package.json как webRoot)
