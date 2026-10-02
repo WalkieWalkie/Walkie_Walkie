@@ -522,10 +522,13 @@ app.on('second-instance', () => {
 
 // ───────── Телеграм-бот управления станцией ─────────
 
-const bot = new TelegramBot({
-  get: () => prefs.telegram,
-  save: (patch) => { prefs.telegram = { ...prefs.telegram, ...patch }; savePrefs(); },
-});
+// В рации телеграм-бота нет — заглушка с теми же методами, чтобы общий код не падал.
+const bot = WALKIE_ONLY
+  ? { running: false, me: null, onCommand() {}, start() { return Promise.resolve(); }, stop() {} }
+  : new TelegramBot({
+    get: () => prefs.telegram,
+    save: (patch) => { prefs.telegram = { ...prefs.telegram, ...patch }; savePrefs(); },
+  });
 
 let botReqId = 0;
 const botPending = new Map();
@@ -777,13 +780,16 @@ ipcMain.handle('telegram:set', async (_e, cfg = {}) => {
 
 // ───────── Веб-панель управления станцией (запасной путь, когда ТГ недоступен) ─────────
 
-const control = new ControlServer(
-  {
-    get: () => prefs.control,
-    save: (patch) => { prefs.control = { ...prefs.control, ...patch }; savePrefs(); },
-  },
-  (cmd, args) => runStationCommand(cmd, args),
-);
+// В рации веб-панели нет — заглушка с теми же методами.
+const control = WALKIE_ONLY
+  ? { running: false, start() { return Promise.resolve(); }, stop() {} }
+  : new ControlServer(
+    {
+      get: () => prefs.control,
+      save: (patch) => { prefs.control = { ...prefs.control, ...patch }; savePrefs(); },
+    },
+    (cmd, args) => runStationCommand(cmd, args),
+  );
 
 function localAddresses() {
   try { return lanAddresses(); } catch { return []; }
