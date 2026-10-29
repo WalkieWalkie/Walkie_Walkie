@@ -32,7 +32,9 @@ HEAR_RANGE = 0.5          # МГц: дальше этого звук станц�
 LISTEN_RANGE = 0.2        # МГц: кто настроен ближе — считается слушателем (FM)
 LISTEN_RANGE_UHF = 0.006  # МГц: у раций каналы узкие — слушатель только на том же канале
 MAX_FRAME = 64 * 1024
-MAX_BUFFER = 512 * 1024   # если клиент не успевает принимать, звук для него пропускается
+# Клиент не успевает принимать — звук для него пропускается, а не копится: отставание в минуту
+# (512 КБ при ~64 кбит/с) в рации бесполезно. 64 КБ — ~8 с ADPCM или ~30 с Opus.
+MAX_BUFFER = 64 * 1024
 NAME_LEN = 24
 
 STATIC_TYPES = {
@@ -60,6 +62,7 @@ class Client:
         self.freqs = []        # на что настроен приёмник (у рации с двойным прослушиванием — две); пусто — выключен
         self.station = None    # своя станция, если клиент в эфире
         self.listeners = -1    # сколько слушателей ему сообщили в последний раз
+        self.opus = False      # приёмник понимает Opus (сообщает в tune: codecs)
 
     @property
     def alive(self):
@@ -84,6 +87,7 @@ class Station:
         self.freq = freq
         self.name = name
         self.monitor = False  # присылать звук и самой станции (ведущий слышит свой эфир)
+        self.codec = None     # какой кодек передачи станции подсказали в последний раз
 
     def info(self):
         return {'id': self.id, 'freq': self.freq, 'name': self.name}
@@ -117,6 +121,15 @@ class Air:
             if count != st.owner.listeners:
                 st.owner.listeners = count
                 st.owner.send_json({'type': 'listeners', 'count': count})
+            # Кодек передачи: Opus (вчетверо легче ADPCM) — только если его понимают все, кто
+            # слышит станцию: старые рации Opus не декодируют. Звук сервер по-прежнему не разбирает.
+            codec = 'opus' if all(
+                c.opus for c in self.clients
+                if (c is not st.owner or st.monitor) and c.hears(st.freq, listen_range(st.freq))
+            ) else 'adpcm'
+            if codec != st.codec:
+                st.codec = codec
+                st.owner.send_json({'type': 'codec', 'codec': codec})
 
     def join(self, client):
         self.clients.add(client)
@@ -162,6 +175,8 @@ class Air:
             if not isinstance(values, list):
                 values = [msg.get('freq')]
             client.freqs = [f for f in (parse_freq(v) for v in values[:4] if v is not None) if f is not None]
+            codecs = msg.get('codecs')
+            client.opus = isinstance(codecs, list) and 'opus' in codecs
             self.update_listeners()
         elif kind == 'onair':
             freq = parse_freq(msg.get('freq'))

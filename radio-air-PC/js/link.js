@@ -18,6 +18,13 @@ class AirLink {
     this.freq = null;         // частота приёмника; null — приёмник выключен
     this.sentFreq = undefined;
     this.tuneTimer = null;
+    // Проверка Opus асинхронная — как закончится, сервер узнает, что мы его понимаем
+    window.OpusVoice?.ready?.then(() => this.flushTune());
+  }
+
+  // Какие кодеки звука мы умеем принимать — сервер по ним выбирает кодек передатчикам
+  static codecs() {
+    return window.OpusVoice?.ok ? ['opus'] : [];
   }
 
   // Сервер, который отдал эту страницу (для приложения его нет — адрес выбирают)
@@ -109,8 +116,10 @@ class AirLink {
     if (this.online) this.ws.send(JSON.stringify(obj));
   }
 
+  // Сеть не успевает — пакет пропускаем, а не копим: голос, отправленный с опозданием в
+  // десяток секунд, в рации бесполезен (32 КБ — ~4 с ADPCM или ~14 с Opus)
   sendAudio(buffer) {
-    if (this.online && this.ws.bufferedAmount < 128 * 1024) this.ws.send(buffer);
+    if (this.online && this.ws.bufferedAmount < 32 * 1024) this.ws.send(buffer);
   }
 
   // Частота приёмника уходит на сервер не чаще пяти раз в секунду.
@@ -127,9 +136,10 @@ class AirLink {
   }
 
   flushTune() {
-    const key = JSON.stringify(this.freq);
+    const codecs = AirLink.codecs();
+    const key = JSON.stringify([this.freq, codecs]);
     if (!this.online || key === this.sentFreq) return;
     this.sentFreq = key;
-    this.send({ type: 'tune', freq: this.freq ? this.freq[0] : null, freqs: this.freq });
+    this.send({ type: 'tune', freq: this.freq ? this.freq[0] : null, freqs: this.freq, codecs });
   }
 }

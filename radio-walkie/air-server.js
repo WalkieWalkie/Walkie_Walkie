@@ -16,7 +16,9 @@ const HEAR_RANGE = 0.5;       // МГц: дальше этого звук ста
 const LISTEN_RANGE = 0.2;     // МГц: кто настроен ближе — считается слушателем (FM)
 const LISTEN_RANGE_UHF = 0.006; // МГц: у раций каналы узкие — слушатель только на том же канале
 const MAX_FRAME = 64 * 1024;
-const MAX_BUFFER = 512 * 1024; // клиент не успевает принимать — звук для него пропускается
+// Клиент не успевает принимать — звук для него пропускается, а не копится: отставание в минуту
+// (512 КБ при ~64 кбит/с) в рации бесполезно. 64 КБ — ~8 с ADPCM или ~30 с Opus.
+const MAX_BUFFER = 64 * 1024;
 const NAME_LEN = 24;
 
 const STATIC_TYPES = {
@@ -140,7 +142,8 @@ class AirServer {
   // ───────── Эфир ─────────
 
   session(ws) {
-    const client = { id: this.nextId++, ws, freqs: [], station: null, listeners: -1 };
+    // opus — приёмник понимает Opus (сообщает в tune: codecs)
+    const client = { id: this.nextId++, ws, freqs: [], station: null, listeners: -1, opus: false };
     this.clients.add(client);
     this.sendJson(client, { type: 'welcome', stations: this.stations().map((st) => st.info()) });
 
@@ -182,6 +185,16 @@ class AirServer {
       if (count !== st.owner.listeners) {
         st.owner.listeners = count;
         this.sendJson(st.owner, { type: 'listeners', count });
+      }
+      // Кодек передачи: Opus (вчетверо легче ADPCM) — только если его понимают все, кто слышит
+      // станцию: старые рации Opus не декодируют. Звук сервер по-прежнему не разбирает.
+      let codec = 'opus';
+      for (const c of this.clients) {
+        if ((c !== st.owner || st.monitor) && hears(c, st.freq, listenRange(st.freq)) && !c.opus) codec = 'adpcm';
+      }
+      if (codec !== st.codec) {
+        st.codec = codec;
+        this.sendJson(st.owner, { type: 'codec', codec });
       }
     }
   }
@@ -233,6 +246,7 @@ class AirServer {
     if (msg.type === 'tune') {
       const values = Array.isArray(msg.freqs) ? msg.freqs.slice(0, 4) : [msg.freq];
       client.freqs = values.map(parseFreq).filter((f) => f !== null);
+      client.opus = Array.isArray(msg.codecs) && msg.codecs.includes('opus');
       this.updateListeners();
     } else if (msg.type === 'onair') {
       const freq = parseFreq(msg.freq);

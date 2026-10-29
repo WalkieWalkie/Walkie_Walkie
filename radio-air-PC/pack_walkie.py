@@ -50,6 +50,7 @@ FILES = {
     'web/js/stations.js': ROOT / 'js' / 'stations.js',
     'web/js/engine.js': ROOT / 'js' / 'engine.js',
     'web/js/codec.js': ROOT / 'js' / 'codec.js',
+    'web/js/opus.js': ROOT / 'js' / 'opus.js',
     'web/js/crypto.js': ROOT / 'js' / 'crypto.js',
     'web/js/live.js': ROOT / 'js' / 'live.js',
     'web/js/link.js': ROOT / 'js' / 'link.js',

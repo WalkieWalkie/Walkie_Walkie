@@ -228,6 +228,7 @@
       if (!online) {
         clearLive();
         registered = null;
+        airCodec = 'adpcm'; // новый сервер может не уметь выбирать кодек — до его ответа ADPCM
       }
       render();
     },
@@ -277,6 +278,10 @@
         break;
       case 'error':
         flash(String(msg.message).toUpperCase(), 2500);
+        break;
+      case 'codec':
+        // Сервер выбрал кодек нашей передачи по тем, кто нас слышит (см. «Кодек эфира»)
+        airCodec = msg.codec === 'opus' ? 'opus' : 'adpcm';
         break;
       case 'server-notice': {
         // Оповещение от хозяина сервера — показываем всем на канале (обновление, перезапуск и т.д.)
@@ -404,59 +409,57 @@
     if (cfg.scr.trim().toUpperCase() === phrase) txKey = entry; // пока считали, ключ могли сменить
   }
 
-  // С ключом звук шифруется до отправки; пока ключ считается — пакет пропадает, но открыто не уходит
-  // Звук сжимается (ADPCM, в 4 раза меньше) — чтобы держать связь на слабой сети.
+  // С ключом звук шифруется до отправки; пока ключ считается — пакет пропадает, но открыто не уходит.
   // seq растёт с каждым пакетом: приёмник по нему латает потерянные.
-  // Кодек эфира: Opus (WebCodecs) — чистый голос ~16 кбит/с, заметно лучше ADPCM и легче для 2G.
-  // Где WebCodecs нет — откат на ADPCM. seq в любом случае для восстановления потерь.
+  //
+  // Кодек эфира. Opus (WebCodecs) — чистый голос на ~16 кбит/с, вчетверо легче ADPCM (~64 кбит/с):
+  // на слабой сети (2G, «одна палка», VPN) голос перестаёт рваться. Но старые рации Opus не
+  // декодируют (или декодируют с ошибкой частоты), поэтому кодек выбирает сервер: шлёт codec = 'opus',
+  // только когда все, кто нас слышит, сообщили, что понимают Opus (link.js → codecs). Старый сервер
+  // ничего не шлёт — тогда всегда ADPCM, как раньше.
   let txSeq = 0;
   let opusTx = null;
-  // Временно выключено: Opus в поле дал низкий тон/эхо — откат на ADPCM, доделываю Opus отдельно.
-  const OPUS_ENABLED = false;
+  let opusFails = 0;
+  let airCodec = 'adpcm';
+  const OPUS_ENABLED = true; // аварийный выключатель: false — всегда ADPCM
 
-  function sendAudioOpus(bytes) {
+  // Сжатый кадр → в эфир: открытым пакетом или запечатанным ключом канала
+  function sendPacket(body, open, seal) {
     const seq = txSeq;
     txSeq = (txSeq + 1) & 0xff;
     if (!cfg.scr) {
-      link.sendAudio(openPacketO(bytes, seq));
+      link.sendAudio(open(body, seq));
       return;
     }
     const entry = txKey;
     if (!entry) return;
     sealing = sealing
-      .then(() => sealPacketO(entry, bytes, seq))
+      .then(() => seal(entry, body, seq))
       .then((packet) => link.sendAudio(packet))
       .catch(() => {});
   }
 
-  function ensureOpusTx() {
-    if (!OPUS_ENABLED || opusTx || !(window.OpusVoice && OpusVoice.supported)) return opusTx;
-    try {
-      const tx = new OpusVoice.Tx((bytes) => sendAudioOpus(bytes));
-      tx.start();
-      opusTx = tx;
-    } catch {
-      opusTx = null;
+  // Кодер Opus, если сейчас передаём им. Упал — поднимаем заново, но после трёх падений
+  // до перезапуска рации остаёмся на ADPCM: связь важнее чистоты звука
+  function opusEncoder() {
+    if (!OPUS_ENABLED || airCodec !== 'opus' || !window.OpusVoice?.ok || opusFails > 3) return null;
+    if (!opusTx?.ready) {
+      if (opusTx) opusFails++; // прежний кодер упал на ходу
+      opusTx?.close();
+      opusTx = new OpusVoice.Tx((bytes) => sendPacket(bytes, openPacketO, sealPacketO));
+      opusTx.start().catch(() => {});
+      if (!opusTx.ready) opusFails++;
     }
-    return opusTx;
+    return opusTx.ready && opusFails <= 3 ? opusTx : null;
   }
 
   function transmit(pcm) {
-    const tx = ensureOpusTx();
-    if (tx) { tx.push(new Int16Array(pcm)); return; } // пакет уйдёт асинхронно через sendAudioOpus
-    const seq = txSeq;
-    txSeq = (txSeq + 1) & 0xff;
-    const adpcm = adpcmEncode(new Int16Array(pcm));
-    if (!cfg.scr) {
-      link.sendAudio(openPacketC(adpcm, seq));
+    const enc = opusEncoder();
+    if (enc) {
+      enc.push(new Int16Array(pcm)); // пакет уйдёт асинхронно из кодера
       return;
     }
-    const entry = txKey;
-    if (!entry) return;
-    sealing = sealing
-      .then(() => sealPacketC(entry, adpcm, seq))
-      .then((packet) => link.sendAudio(packet))
-      .catch(() => {});
+    sendPacket(adpcmEncode(new Int16Array(pcm)), openPacketC, sealPacketC);
   }
 
   async function ensureMic() {
