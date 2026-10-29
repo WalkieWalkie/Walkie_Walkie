@@ -87,6 +87,7 @@
     dw: boolOr(saved.cfg?.dw, false),
     beep: boolOr(saved.cfg?.beep, true),
     abr: intIn(saved.cfg?.abr, 2, 0, ABR_TIMES.length - 1),
+    stat: boolOr(saved.cfg?.stat, true), // строка статистики связи внизу экрана (16 STAT)
     name: typeof saved.cfg?.name === 'string' && saved.cfg.name ? saved.cfg.name : appSaved.onair?.name || 'РАЦИЯ',
   };
 
@@ -420,20 +421,29 @@
   let opusFails = 0;
   let airCodec = 'adpcm';
   const OPUS_ENABLED = true; // аварийный выключатель: false — всегда ADPCM
+  // Статистика передачи для строки на экране: сколько кадров сжато и сколько реально ушло в сеть
+  const txStat = { since: 0, end: 0, frames: 0, sent: 0, bytes: 0, codec: '' };
 
   // Сжатый кадр → в эфир: открытым пакетом или запечатанным ключом канала
   function sendPacket(body, open, seal) {
     const seq = txSeq;
     txSeq = (txSeq + 1) & 0xff;
+    txStat.frames++;
+    txStat.codec = open === openPacketO ? 'OPUS' : 'ADPCM';
+    const send = (packet) => {
+      if (!link.sendAudio(packet)) return;
+      txStat.sent++;
+      txStat.bytes += packet.byteLength;
+    };
     if (!cfg.scr) {
-      link.sendAudio(open(body, seq));
+      send(open(body, seq));
       return;
     }
     const entry = txKey;
     if (!entry) return;
     sealing = sealing
       .then(() => seal(entry, body, seq))
-      .then((packet) => link.sendAudio(packet))
+      .then(send)
       .catch(() => {});
   }
 
@@ -505,6 +515,8 @@
     if ((source === 'hold' && !pttHeld) || (source === 'hotkey' && !hotkeyHeld) || !radio.power) return;
     tx.line = txLine();
     registerStation(freqOf(tx.line));
+    txSeq = 0; // номера пакетов — с нуля на каждой передаче: так приёмник отличает новую передачу от обрыва
+    Object.assign(txStat, { since: performance.now(), end: 0, frames: 0, sent: 0, bytes: 0 });
     Object.assign(tx, { active: true, source, since: performance.now() });
     broadcaster.transmitting = true;
     document.title = '● Передача — Рация';
@@ -518,6 +530,7 @@
     if (cfg.roger && link.online) await broadcaster.roger();
     broadcaster.transmitting = false;
     Object.assign(tx, { active: false, stopping: false, source: null, line: null });
+    txStat.end = performance.now();
     document.title = 'Рация';
     registerSoon(); // если отвечали на втором канале — вернуться на рабочий
     render();
@@ -682,6 +695,8 @@
       show: onOff, apply: (v) => (v ? startHosting() : hostInfo && stopHosting()) },
     { code: 'TOP', hint: 'ПОВЕРХ ВСЕХ ОКОН', desktop: true, options: () => [false, true], get: () => onTop, show: onOff,
       apply: (v) => setOnTop(v) },
+    { code: 'STAT', hint: 'СВЯЗЬ: ПОТЕРИ, ОБРЫВЫ, БУФЕР', options: () => [false, true], get: () => cfg.stat, show: onOff,
+      apply: (v) => { cfg.stat = v; } },
   ].filter((item) => !item.desktop || desktop);
 
   let menu = null; // { index, editing, options, pick, num }
@@ -1315,6 +1330,7 @@
       lineView('A', rx);
       lineView('B', rx);
     }
+    renderStat(rx, now, inMenu);
 
     // Короткие сообщения поверх экрана
     const msg = $('lcd-msg');
@@ -1325,6 +1341,39 @@
 
     renderChrome();
     if (view === 'bar') renderBar(rx, now);
+  }
+
+  /* ───────── Статистика связи (меню STAT) ───────── */
+
+  // Мелкая строка внизу экрана — только во время приёма или передачи и STAT_HOLD после; в покое
+  // её нет. Приём: кодек и трафик, ПОТ — потерянные пакеты, ОБР — слышимые обрывы посреди передачи,
+  // БУФ — сколько звука в запасе (на столько голос отстаёт). Передача: кодек, трафик и НЕ УШЛО —
+  // пакеты, которые не пролезли в сеть (слабый канал у передающего).
+  const STAT_HOLD = 10000;
+  let statSt = null; // чью статистику приёма показываем — последнего, кого слышали
+
+  const pct = (v) => (v > 0 && v < 10 ? v.toFixed(1) : String(Math.round(v)));
+
+  function statText(rx, now) {
+    if (rx && !rx.st.live) return ''; // встроенные станции FM-радио — не эфир, считать нечего
+    if (rx) statSt = rx.st;
+    const view = statSt?.statView();
+    const rxAt = rx ? now : view?.last ?? 0;
+    const txAt = tx.active ? now : txStat.end;
+    if (txStat.frames && txAt >= rxAt && now - txAt < STAT_HOLD) {
+      const secs = Math.max(1, (txAt - txStat.since) / 1000);
+      const kbps = Math.round((txStat.bytes * 8) / secs / 1000);
+      return `TX ${txStat.codec} ${kbps}K · НЕ УШЛО ${pct((1 - txStat.sent / txStat.frames) * 100)}%`;
+    }
+    if (!view || now - rxAt > STAT_HOLD) return '';
+    return `${view.codec} ${Math.round(view.kbps)}K · ПОТ ${pct(view.loss)}% · ОБР ${view.breaks} · БУФ ${view.buffer.toFixed(1)}С`;
+  }
+
+  function renderStat(rx, now, hidden) {
+    const el = $('lcd-stat');
+    const text = cfg.stat && !hidden && radio.power ? statText(rx, now) : '';
+    el.hidden = !text;
+    setText(el, text);
   }
 
   /* ───────── Окно: поверх всех, развернуть, свернуть, закрыть ───────── */

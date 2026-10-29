@@ -18,6 +18,16 @@ const TX_HANGOVER = 13;
 const FSK4_TONES = [900, 1500, 2100, 2700];
 const FSK4_BAUD = 2400;
 
+// Статистика связи (строка внизу экрана рации): сеанс приёма — пока пакеты идут с перерывами
+// короче STAT_SESSION; потерей считаем разрыв номеров не длиннее STAT_MAX_GAP пакетов (2 с)
+const STAT_SESSION = 3000; // мс
+const STAT_MAX_GAP = 50;
+const PACKET_CODEC = {
+  [PACKET_OPEN]: 'PCM', [PACKET_SEALED]: 'PCM',
+  [PACKET_OPEN_C]: 'ADPCM', [PACKET_SEALED_C]: 'ADPCM',
+  [PACKET_OPEN_O]: 'OPUS', [PACKET_SEALED_O]: 'OPUS',
+};
+
 /* Станция другого человека. Звук приходит пакетами с сервера. */
 class LiveStation extends Station {
   constructor(info) {
@@ -32,6 +42,8 @@ class LiveStation extends Station {
     this.good = 0;
     this.lastFrame = null;     // последний расшифрованный кадр — для маскировки потерь
     this.lastSeq = undefined;  // номер последнего пакета
+    this.stat = null;          // статистика текущего сеанса приёма (см. count)
+    this.fill = 0;             // сколько звука в запасе у проигрывателя, с
     this.update(info);
   }
 
@@ -59,6 +71,11 @@ class LiveStation extends Station {
           processorOptions: { rate: LIVE_RATE, jitter: LIVE_JITTER },
         });
         node.connect(this.output);
+        // Проигрыватель сообщает о провалах (для счёта обрывов) и о заполнении буфера
+        node.port.onmessage = (e) => {
+          if (e.data.under) this.noteUnder();
+          else if (typeof e.data.fill === 'number') this.fill = e.data.fill;
+        };
         this.player = node;
         if (this._pQueue) for (const f of this._pQueue) node.port.postMessage({ samples: f });
         this._pQueue = null;
@@ -91,6 +108,7 @@ class LiveStation extends Station {
   receive(packet, keyring) {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running' || packet.length < 2) return;
+    this.count(packet);
     this.lastChunk = ctx.currentTime;
     const type = packet[0];
     const seq = packet[1];
@@ -170,6 +188,43 @@ class LiveStation extends Station {
     return this._opusRx;
   }
 
+  // Статистика связи: потери (по номерам пакетов), обрывы, кодек, трафик — за сеанс приёма
+  count(packet) {
+    const now = performance.now();
+    const seq = packet[1];
+    let s = this.stat;
+    if (!s || now - s.last > STAT_SESSION) {
+      s = this.stat = { since: now, last: now, got: 0, lost: 0, bytes: 0, breaks: 0, under: 0, seq, codec: '' };
+    } else {
+      // Новая передача того же человека: рация начинает номера пакетов с нуля
+      const fresh = now - s.last > 500 && seq <= 2;
+      const gap = (seq - s.seq - 1) & 0xff;
+      if (!fresh && gap > 0 && gap <= STAT_MAX_GAP) s.lost += gap;
+      // Звук прервался, а передача продолжилась — слышимый обрыв
+      if (!fresh && s.under) s.breaks++;
+    }
+    s.under = 0;
+    s.seq = seq;
+    s.last = now;
+    s.got++;
+    s.bytes += packet.length + 4; // + номер станции — столько пришло по сети
+    s.codec = PACKET_CODEC[packet[0]] || s.codec;
+  }
+
+  // Проигрыватель остался без звука посреди приёма (обрыв это или конец передачи — решит count)
+  noteUnder() {
+    if (this.stat && this.stat.got > 1) this.stat.under = performance.now();
+  }
+
+  // Для экрана: { codec, kbps, loss %, breaks, buffer с, last } или null
+  statView() {
+    const s = this.stat;
+    if (!s) return null;
+    const secs = Math.max(1, (s.last - s.since) / 1000);
+    const buffer = this.player ? this.fill : Math.max(0, this.playhead - (this.ctx?.currentTime ?? 0));
+    return { codec: s.codec, kbps: (s.bytes * 8) / secs / 1000, loss: (s.lost / (s.got + s.lost)) * 100, breaks: s.breaks, buffer, last: s.last };
+  }
+
   // Пропущены пакеты (по номеру seq) — заполняем дыру затухающим повтором последнего кадра,
   // чтобы вместо щелчка/провала был плавный «хвост». Работает только когда отправитель шлёт seq.
   conceal(seq) {
@@ -194,6 +249,7 @@ class LiveStation extends Station {
     let j = this.jitter;
     if (this.playhead < now) {
       // Недобор: буфер опустел — сильно растим запас, чтобы пережить следующие рывки
+      this.noteUnder();
       j = Math.min(LIVE_JITTER_MAX, j * 1.8 + 0.08);
       this.jitter = j;
       this.good = 0;

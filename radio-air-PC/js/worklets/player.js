@@ -26,6 +26,7 @@ class LivePlayer extends AudioWorkletProcessor {
     this.env = 0;                // огибающая для мягких фейдов (0..1)
     this.fade = 1 / Math.max(64, Math.round(sampleRate * 0.008)); // ~8 мс
     this.good = 0;               // счётчик стабильных блоков — чтобы медленно ужимать буфер
+    this.tick = 0;               // для отчёта о заполнении буфера (статистика связи на экране)
     this.port.onmessage = (e) => {
       const d = e.data;
       if (d.samples) this.push(d.samples);
@@ -58,6 +59,12 @@ class LivePlayer extends AudioWorkletProcessor {
     const N = out.length;
     const size = this.size;
 
+    // Раз в ~250 мс — сколько звука в запасе (это и есть добавленная буфером задержка)
+    if (++this.tick >= Math.round((sampleRate * 0.25) / N)) {
+      this.tick = 0;
+      this.port.postMessage({ fill: this.avail / this.rate });
+    }
+
     if (!this.playing) {
       // Набор буфера (стартовый или после провала): пока не накопили запас — тишина
       if (this.avail >= this.pre) this.playing = true;
@@ -65,6 +72,7 @@ class LivePlayer extends AudioWorkletProcessor {
     }
 
     let under = false;
+    const was = this.playing;
     for (let i = 0; i < N; i++) {
       if (this.avail < this.step + 2) {
         // Недобор данных: плавно гасим и уходим в набор буфера
@@ -85,6 +93,10 @@ class LivePlayer extends AudioWorkletProcessor {
       this.rd = rd;
       this.avail -= this.step;
     }
+
+    // Звук кончился посреди воспроизведения — провал. Обрыв ли это (передача продолжилась) или
+    // просто конец передачи, решает приёмник по тому, придут ли следом пакеты
+    if (was && !this.playing) this.port.postMessage({ under: true });
 
     if (under) {
       // Был провал — на следующий раз набираем больше запаса (адаптивно, до maxPre)

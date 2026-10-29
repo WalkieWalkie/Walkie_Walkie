@@ -412,6 +412,26 @@ button {
 .line.is-rx .line__sub { color: var(--ink); }
 .line.is-dim { opacity: 0.45; }
 
+/* Статистика связи (меню STAT) — мелко внизу экрана, под строкой канала B.
+   .lcd > — чтобы не перебило .lcd > * { position: relative } из look.css */
+.lcd > .lcd__stat {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 5px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-family: 'WK Mono', monospace; /* читаемо при любом шрифте экрана, даже 7-сегментном */
+  font-size: 7.5px;
+  font-weight: 700;
+  line-height: 9px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lcd__stat[hidden] { display: none; }
+
 .screen--menu {
   justify-content: center;
   height: 118px;

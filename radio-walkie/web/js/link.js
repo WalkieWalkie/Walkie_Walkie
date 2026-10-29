@@ -118,8 +118,11 @@ class AirLink {
 
   // Сеть не успевает — пакет пропускаем, а не копим: голос, отправленный с опозданием в
   // десяток секунд, в рации бесполезен (32 КБ — ~4 с ADPCM или ~14 с Opus)
+  // true — пакет ушёл в сеть (для статистики передачи на экране)
   sendAudio(buffer) {
-    if (this.online && this.ws.bufferedAmount < 32 * 1024) this.ws.send(buffer);
+    if (!this.online || this.ws.bufferedAmount >= 32 * 1024) return false;
+    this.ws.send(buffer);
+    return true;
   }
 
   // Частота приёмника уходит на сервер не чаще пяти раз в секунду.
