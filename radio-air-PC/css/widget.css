@@ -103,7 +103,7 @@ button {
   background:
     repeating-linear-gradient(180deg, transparent 0 16px, rgba(255, 255, 255, 0.04) 16px 18px),
     linear-gradient(90deg, #0d0d10, #2b2c31 45%, #0b0b0d);
-  box-shadow: 0 0 0 1px var(--edge);
+  box-shadow: inset 0 0 0 1px var(--edge); /* обводка внутрь — см. .body */
   -webkit-app-region: drag;
 }
 
@@ -172,7 +172,7 @@ button {
   height: 52px;
   border-radius: 8px 8px 4px 4px;
   background: repeating-linear-gradient(90deg, #2c2d32 0 3px, #141518 3px 6px);
-  box-shadow: 0 0 0 1px var(--edge), 0 6px 10px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 1px var(--edge), 0 6px 10px rgba(0, 0, 0, 0.5); /* обводка внутрь — см. .body */
   cursor: pointer;
   -webkit-app-region: no-drag;
   outline: none;
@@ -227,13 +227,13 @@ button {
   background:
     repeating-linear-gradient(180deg, transparent 0 5px, rgba(255, 255, 255, 0.05) 5px 6px),
     linear-gradient(90deg, #111215, #2b2c31);
-  box-shadow: 0 0 0 1px var(--edge);
+  box-shadow: inset 0 0 0 1px var(--edge); /* обводка внутрь — см. .body */
   color: #8d8a83;
   cursor: pointer;
 }
 
 .side__ptt { width: 22px; height: 86px; }
-.side__key { width: 20px; height: 38px; }
+.side__key { width: 21px; height: 38px; } /* заходит под корпус на 1px — без щели на стыке */
 
 .side__ptt span,
 .side__key span {
@@ -260,8 +260,11 @@ button {
   background:
     radial-gradient(120% 60% at 50% 0%, rgba(255, 255, 255, 0.05), transparent 60%),
     linear-gradient(180deg, var(--plastic-hi), var(--plastic-lo));
+  /* Обводка — внутрь (inset), а не внешним кольцом: внешнее кольцо сглаживается отдельно от
+     фона корпуса, и при дробном масштабе (Windows 125–175 %, телефон) между ними остаётся
+     полупрозрачный шов — по краю корпуса просвечивает то, что за рацией. */
   box-shadow:
-    0 0 0 1px var(--edge),
+    inset 0 0 0 1px var(--edge),
     inset 0 1px 0 rgba(255, 255, 255, 0.09),
     inset 0 -2px 0 rgba(0, 0, 0, 0.5),
     0 18px 26px -8px rgba(0, 0, 0, 0.75);
